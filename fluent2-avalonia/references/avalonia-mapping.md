@@ -1,6 +1,6 @@
 # Avalonia mapping: how Fluent concepts become AXAML, styles, behaviors and tests
 
-Read this file when you turn a Fluent rule from the other reference files into Avalonia code: choosing selectors for states, wiring tokens, writing transitions, adding keyboard behavior, exposing automation, restoring focus, and testing with headless input. Fluent itself says little about Avalonia; everything here is practical guidance, so treat it as **Derived** and sketched against Avalonia 11 conventions. Property and pseudo-class names change between versions and themes, so confirm each one against the control theme and the version your project uses before copying it. Where a statement is an observed behavior rather than documented, it says so.
+Read this file when you turn a Fluent rule from the other reference files into Avalonia code: choosing selectors for states, wiring tokens, writing transitions, adding keyboard behavior, exposing automation, restoring focus, and testing with headless input. Fluent itself says little about Avalonia; everything here is practical guidance, so treat it as **Derived** and sketched for Avalonia 11 and 12. Property, event and template-part names change between versions and themes (section 11 lists the 11 to 12 renames), so confirm each one against the control theme and the version your project uses before copying it. Where a statement is an observed behavior rather than documented, it says **observed** and names the version; every observed item here comes from one Avalonia 12.1.4 desktop project on Windows and was not re-checked on Avalonia 11.
 
 ## Contents
 
@@ -14,9 +14,10 @@ Read this file when you turn a Fluent rule from the other reference files into A
 8. [Keyboard, focus and navigation](#8-keyboard-focus-and-navigation)
 9. [Automation](#9-automation)
 10. [Headless tests](#10-headless-tests)
-11. [Observed pitfalls](#11-observed-pitfalls)
-12. [Checklist](#12-checklist)
-13. [Sources](#13-sources)
+11. [Avalonia 11 to 12 names](#11-avalonia-11-to-12-names)
+12. [Observed pitfalls](#12-observed-pitfalls)
+13. [Checklist](#13-checklist)
+14. [Sources](#14-sources)
 
 ## 1. Start from what the project already has
 
@@ -65,13 +66,14 @@ The values are placeholders; use the project's tokens. A third theme variant for
 Rules that save debugging time:
 
 - State colors live in styles, never as local values on the element. Local values beat style setters and state selectors, so a hand-set `Background` makes hover and disabled look broken. Derived from Avalonia's value precedence.
+- A style cannot override a value that the control template sets itself (observed, Avalonia 12.1.4). Seen with the placeholder `Opacity` of 0.5, the accent fill of the `HighlightBackground` part and the radius and surface of `PopupBorder`: the style is accepted and does nothing, with no warning. Because values set in the template rank above style setters. Check with a probe test (apply the style, read the value from the template part), then either set a local value in `TemplateApplied` (section 4) or override the theme resource the template reads.
 - A state selector on a template part needs the `/template/` form, for example `TextBox:pointerover /template/ Border#PART_BorderElement`. The part names come from the theme's template; look them up in the theme source of the version you use.
 - A hover style that reuses the same brush as the rest state is invisible. When you change the rest state, re-check every state that shares the token.
 - Fluent's disabled state is exempt from contrast rules, but keep label and help text readable: apply the disabled look to the input element, not to the field container.
 
 ## 4. Templates and the field underline
 
-Fluent's input has a darker bottom edge and, on focus, a 2 px brand underline that grows from the center. In Avalonia that means a `ControlTheme` for the field with two extra elements: a bottom-edge border and a focus underline whose `ScaleTransform` goes from 0 to 1 horizontally. Sketch only; copy the structure of your theme's `TextBox` template and add the two parts.
+Fluent's input has a darker bottom edge and, on focus, a 2 px brand underline that grows from the center. In Avalonia that means a field with two extra elements: a bottom-edge border and a focus underline whose horizontal scale goes from 0 to 1. Sketch of the template route, for when you own the whole template:
 
 ```xml
 <!-- Inside the TextBox ControlTheme template, below the content presenter -->
@@ -97,6 +99,40 @@ Fluent's input has a darker bottom edge and, on focus, a 2 px brand underline th
 ```
 
 The exit transition is shorter than the enter transition in Fluent (50 ms against 200 ms); you can mirror that with a separate transition set per state. Use `:focus` rather than `:focus-visible` so the underline also shows after a mouse click, because the field must always show where typing goes.
+
+Getting the shipped template (observed, Avalonia 12.1.4):
+
+- The AXAML source of the Fluent templates is inside the NuGet package only in compiled form, so you cannot copy it offline. A complete replacement template risks losing functions the shipped one has (clear and reveal buttons, selection, context menu, undo, automation). Prefer to keep the shipped template and add to it; the template source on GitHub ([Avalonia source][avalonia-src]) is the readable reference.
+- Print the visual tree of the real control with a headless probe test, then read the part names from the output:
+
+```csharp
+[AvaloniaFact]
+public void Probe_text_box_template()
+{
+    var box = new TextBox { Text = "x" };
+    var window = new Window { Content = box };
+    window.Show();
+    box.ApplyTemplate();   // the template exists only after this
+
+    foreach (var visual in box.GetVisualDescendants())   // using Avalonia.VisualTree;
+        Console.WriteLine($"{visual.GetType().Name} '{(visual as Control)?.Name}' opacity {(visual as Visual)?.Opacity}");
+}
+```
+
+- Insert the missing parts (bottom edge, focus underline) from an attached property or a control subclass in `TemplateApplied` (`e.NameScope.Find<Panel>("<name from the probe>")`, then `Children.Add(...)`). Put the look and the motion in style classes (`Border.focus-underline` with its `Transitions`), and switch a state class such as `active` from code on focus changes. Because a reduced-motion override can then reach the transitions by class (`foundations.md`, section 8), and a selector that crosses into code-inserted elements through `/template/` is not guaranteed (derived, not verified).
+
+Template parts you will meet in the Avalonia 12 Fluent templates (observed, Avalonia 12.1.4; which control carries which part is derived, not verified, so confirm with the probe):
+
+| Part | Typical owner | What it is |
+| --- | --- | --- |
+| `PART_BorderElement` | TextBox | Border that draws background, border and radius. Style states through it. |
+| `Background` | ComboBox and others | Named element that paints the control surface. |
+| `HighlightBackground` | ComboBox | Accent-colored fill shown with keyboard focus; sets its own values (section 3). |
+| `PopupBorder` | ComboBox, flyouts | Surface, border and radius of the popup. Sets its own values (section 3). |
+| `PART_Placeholder` | TextBox | Placeholder text; the template sets its `Opacity`. |
+| `PART_FloatingPlaceholder` | TextBox | Placeholder variant that floats above the text. |
+| `PART_TextPresenter` | TextBox | Text, caret and selection. |
+| `PART_ScrollViewer` | TextBox (multi-line) | Scrolling around the presenter. |
 
 Focus rings for buttons and list rows: the control's `FocusAdorner` draws the ring. An adorner drawn outside the element's bounds is clipped by the adorner layer; turn clipping off with `AdornerLayer.IsClipEnabled="False"` on the element (observed). Calling `Focus(NavigationMethod.Tab)` shows the ring only if the element did not already have focus; to test it, focus another element first (observed).
 
@@ -130,38 +166,51 @@ Reduced motion:
 
 - Provide one app-level switch (OS preference where your platform API exposes it, otherwise a setting) and make it zero every transition, including press scales, fades and the input underline.
 - A practical route: add a class such as `no-motion` on the root window and a style that clears `Transitions` for the controls and their template parts (`/template/` selectors), or build transitions from a few shared style classes that the switch removes. Verify with the test below instead of trusting the selectors.
+- Keep the override styles available apart from the OS query, for example as a static `Overrides()` method that the OS hook and the test both apply (pattern in `foundations.md`, section 8). A test that can only run when the OS setting is on will never run.
 - Test: with the switch on, walk the visual tree and assert that no element has a non-empty `Transitions` collection with a non-zero duration (section 10).
 
 ## 6. Behaviors as attached properties
 
 Put keyboard and focus behavior that applies to many fields into attached properties or small control subclasses, so XAML opts in with one attribute and one test pins the behavior.
 
+Avalonia 12 already selects everything when Tab moves into a single-line `TextBox` (observed, Avalonia 12.1.4). That is right for fast fields (time, date, number, money, search) and wrong for text fields, where editing is the common case and the caret belongs at the end (`inputs.md`, section 5). So a behavior needs two modes, and the headless test comes first because it shows which one a field needs in your version.
+
 ```csharp
-public static class SelectAllOnTab
+public enum TabFocusMode { Default, CaretAtEnd, SelectAll }
+
+public static class TabFocus
 {
-    public static readonly AttachedProperty<bool> IsEnabledProperty =
-        AvaloniaProperty.RegisterAttached<TextBox, bool>("IsEnabled", typeof(SelectAllOnTab));
+    public static readonly AttachedProperty<TabFocusMode> ModeProperty =
+        AvaloniaProperty.RegisterAttached<TextBox, TabFocusMode>("Mode", typeof(TabFocus));
 
-    public static void SetIsEnabled(TextBox box, bool value) => box.SetValue(IsEnabledProperty, value);
-    public static bool GetIsEnabled(TextBox box) => box.GetValue(IsEnabledProperty);
+    public static void SetMode(TextBox box, TabFocusMode value) => box.SetValue(ModeProperty, value);
+    public static TabFocusMode GetMode(TextBox box) => box.GetValue(ModeProperty);
 
-    static SelectAllOnTab() =>
-        IsEnabledProperty.Changed.AddClassHandler<TextBox>(OnIsEnabledChanged);
+    static TabFocus() =>
+        ModeProperty.Changed.AddClassHandler<TextBox>(OnModeChanged);
 
-    private static void OnIsEnabledChanged(TextBox box, AvaloniaPropertyChangedEventArgs e)
+    private static void OnModeChanged(TextBox box, AvaloniaPropertyChangedEventArgs e)
     {
         box.GotFocus -= OnGotFocus;
-        if (e.NewValue is true) box.GotFocus += OnGotFocus;
+        if (e.NewValue is TabFocusMode.CaretAtEnd or TabFocusMode.SelectAll) box.GotFocus += OnGotFocus;
     }
 
-    private static void OnGotFocus(object? sender, GotFocusEventArgs e)
+    // Avalonia 11: GotFocusEventArgs (see section 11)
+    private static void OnGotFocus(object? sender, FocusChangedEventArgs e)
     {
-        if (sender is TextBox box && e.NavigationMethod == NavigationMethod.Tab) box.SelectAll();
+        if (sender is not TextBox box || e.NavigationMethod != NavigationMethod.Tab) return;
+        // Post, because the control applies its own selection while it handles the focus change
+        // (derived, not verified); the test shows whether the post is needed.
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (GetMode(box) == TabFocusMode.SelectAll) box.SelectAll();
+            else box.CaretIndex = box.Text?.Length ?? 0;   // caret at end, nothing selected
+        });
     }
 }
 ```
 
-Use it as `local:SelectAllOnTab.IsEnabled="True"` on time, date, number, money and search fields. What your Avalonia version selects on Tab by default is something to check, not assume: write the headless test first and let it decide whether the behavior is needed.
+Use it as `local:TabFocus.Mode="SelectAll"` on time, date, number, money and search fields and `local:TabFocus.Mode="CaretAtEnd"` on name, address and note fields. A text field after a button needs the test "Tab in, `SelectionStart` equals `SelectionEnd` equals the text length"; a fast field needs the test "Tab in, the selection covers the whole text". Write both tests first and let them decide whether the behavior is needed at all.
 
 Other behaviors worth centralizing: Esc restores the last committed value (and consumes the key so the next Esc closes the form); Enter commits and runs the default button; paste sanitizing; wheel changes the value only while focused; arrow-step repeat with a 300 ms delay then acceleration.
 
@@ -180,8 +229,22 @@ Money uses `decimal`; the display and parse paths take a `CultureInfo`; no `doub
 
 - Group as one tab stop: `KeyboardNavigation.TabNavigation="Once"` on the group container with arrow handling inside (radio groups, button strips). `Cycle` wraps inside popups such as menus; `Continue` is the default.
 - Region switching with F6: keep an ordered list of region roots, intercept `KeyDown` for F6 and Shift+F6 on the window, move focus to the first focusable descendant of the next region. Give each root `AutomationProperties.Name`.
-- Restoring focus after a transient surface closes: store the invoker before opening, then call `invoker.Focus()` after close (`Dispatcher.UIThread.Post` when closing from inside a handler). When the focused element hides itself, no element owns focus and keys never reach your view (observed); listen with `AddHandler(InputElement.KeyDownEvent, handler, RoutingStrategies.Tunnel)` on the window, and if `TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement()` is null, restore focus and handle the key.
+- Restoring focus after a transient surface closes: store the invoker before opening, then call `invoker.Focus()` after close (`Dispatcher.UIThread.Post` when closing from inside a handler). When the focused element hides itself, no element owns focus and keys never reach your view (observed); listen with `AddHandler(InputElement.KeyDownEvent, handler, RoutingStrategies.Tunnel)` on the window, and if `TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement()` is null, restore focus and handle the key. (`TopLevel.GetTopLevel` replaces `Visual.GetVisualRoot` in Avalonia 12; section 11.)
 - Menus and flyouts: when a click handler closes a flyout, its items can lose their `DataContext`, so command parameters arrive empty (observed). Run the command first and close the flyout afterwards with `Dispatcher.UIThread.Post`.
+- Esc and parent views with tunnel handlers: when a parent view handles keys in the tunnel phase (to close a panel on Esc, to move a selection with arrows), its handler runs before the focused field, so the field never gets its own Esc (restore the value) and the panel closes with the edit lost (observed, Avalonia 12.1.4). Pattern: the field publishes an attached property such as `HasPendingChange` (true while the text differs from the last committed value or while a popup is open), and the parent handler asks the focused element before it acts:
+
+```csharp
+private void OnTunnelKeyDown(object? sender, KeyEventArgs e)
+{
+    var focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
+    if (e.Key == Key.Escape && focused is Control field && PendingChange.GetHasPendingChange(field))
+        return;   // the field restores its value first; the next Esc reaches this handler
+    // ... close the panel, move the selection
+}
+```
+
+  Keep the field-side rule from `inputs.md` (section 3): it clears `HasPendingChange` when it restores or commits and marks the key handled.
+- `Button.IsDefault` is a window-wide hotkey for Enter (observed, Avalonia 12.1.4): it fires for every Enter that no control handled, anywhere in the window, and when several visible buttons are default, all of them fire. Inline cards and side panels with their own default button make Enter in one place run the action of another. Set `IsDefault` on one button per visible form or panel only (bind it to the "panel is open and active" state, or set it when the form opens and clear it when it closes). A multi-line field handles Enter itself (`AcceptsReturn`), so it does not trigger the default button. Avalonia has no built-in Ctrl+Enter; add it per field, for example `<TextBox.KeyBindings><KeyBinding Gesture="Ctrl+Enter" Command="{Binding SaveCommand}"/></TextBox.KeyBindings>` (derived, not verified for your version).
 - Dragging: releasing pointer capture inside `PointerReleased` raises `PointerCaptureLost` at once and cancels the operation; finish the drop first, then release (observed).
 
 ## 9. Automation
@@ -197,11 +260,55 @@ Money uses `decimal`; the display and parse paths take a `CultureInfo`; no `doub
 | Live region for message bars | `AutomationProperties.LiveSetting` (`Assertive` for errors and warnings, `Polite` otherwise) |
 | Hide decorative elements | `AutomationProperties.AccessibilityView="Raw"` (check the value name in your version) |
 
-For custom controls override `OnCreateAutomationPeer` and return a peer that reports the right role and, for range controls, the range-value pattern (minimum, maximum, value). Keep the step buttons of a number field out of the tab order (`Focusable="False"` or `IsTabStop="False"`) and name them "Increase" and "Decrease". Fluent and WinUI sources for the rules: see `accessibility.md`.
+For custom controls override `OnCreateAutomationPeer` and return a peer that reports the right role and, for range controls, the range-value pattern (minimum, maximum, value). A `TextBox` peer already implements `IValueProvider`, whose `Value` is the text and clashes by name with `IRangeValueProvider.Value`, which is a number. Derive from `TextBoxAutomationPeer` and implement the range interface explicitly, so both patterns stay available (Derived; let the compiler list the members of the interface in your version):
+
+```csharp
+public sealed class NumberFieldAutomationPeer : TextBoxAutomationPeer, IRangeValueProvider
+{
+    private readonly NumberField _field;
+
+    public NumberFieldAutomationPeer(NumberField owner) : base(owner) => _field = owner;
+
+    // Explicit, because IValueProvider.Value (string) is inherited from the base peer.
+    double IRangeValueProvider.Value => (double)(_field.Value ?? _field.Minimum);
+    double IRangeValueProvider.Minimum => (double)_field.Minimum;
+    double IRangeValueProvider.Maximum => (double)_field.Maximum;
+    double IRangeValueProvider.SmallChange => (double)_field.Step;
+    double IRangeValueProvider.LargeChange => (double)_field.LargeStep;
+    bool IRangeValueProvider.IsReadOnly => _field.IsReadOnly;
+    void IRangeValueProvider.SetValue(double value) => _field.Value = (decimal)value;
+}
+
+// in NumberField
+protected override AutomationPeer OnCreateAutomationPeer() => new NumberFieldAutomationPeer(this);
+```
+
+The conversion to `double` is for the automation surface only; the money path stays `decimal`. Keep the step buttons of a number field out of the tab order (`Focusable="False"` or `IsTabStop="False"`) and name them "Increase" and "Decrease". Fluent and WinUI sources for the rules: see `accessibility.md`.
 
 ## 10. Headless tests
 
-Use `Avalonia.Headless.XUnit` (or the NUnit package) with the Skia renderer when you need frames.
+Use the headless platform with the Skia renderer when you need frames. Two ways to run tests on it, depending on the test framework:
+
+- xUnit v2 or NUnit: the `Avalonia.Headless.XUnit` or `Avalonia.Headless.NUnit` package with `[AvaloniaFact]` or `[AvaloniaTest]` (below).
+- xUnit v3: the attribute packages do not fit; start one `HeadlessUnitTestSession` for the test assembly and run each test body through `Session.Dispatch` (observed, Avalonia 12.1.4). Share one session, because the process hosts one Avalonia application.
+
+```csharp
+public static class Headless
+{
+    public static readonly HeadlessUnitTestSession Session =
+        HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
+}
+
+public class TimeFieldTests
+{
+    [Fact]
+    public Task Tab_into_time_field_selects_all() =>
+        Headless.Session.Dispatch(() =>
+        {
+            // build the window, press keys, assert, exactly as in the [AvaloniaFact] example below
+        }, CancellationToken.None);
+}
+```
 
 ```csharp
 [assembly: AvaloniaTestApplication(typeof(TestAppBuilder))]
@@ -220,7 +327,7 @@ public class TestAppBuilder
 public void Tab_into_time_field_selects_all()
 {
     var field = new TextBox { Text = "09:30" };
-    SelectAllOnTab.SetIsEnabled(field, true);
+    TabFocus.SetMode(field, TabFocusMode.SelectAll);
     var window = new Window { Content = new StackPanel { Children = { new Button(), field } } };
     window.Show();
 
@@ -262,17 +369,34 @@ static double Contrast(Color a, Color b)
 }
 ```
 
+Saving many PNG frames in one run can crash the test host with an access violation (0xC0000005) inside Skia (observed, Avalonia 12.1.4, Windows). Keep image tests in their own, smaller runs (one theme or one view group per run, selected by trait or class filter) and keep the standard run free of bulk image saves.
+
 Run only one test process per working copy at a time and stop local servers first: suites that start databases, simulators or other apps in parallel can turn headless runs red at random (observed).
 
-## 11. Observed pitfalls
+## 11. Avalonia 11 to 12 names
+
+Avalonia 12 renames several APIs and template parts that this skill's patterns use. Observed in Avalonia 12.1.4; the right-hand column is the name to use there, the left-hand column is what Avalonia 11 code and older examples contain. Docs: [Avalonia documentation][avalonia-docs].
+
+| Avalonia 11 | Avalonia 12 | Where it shows up |
+| --- | --- | --- |
+| `GotFocusEventArgs` | `FocusChangedEventArgs` | Handlers for `GotFocus`, `LostFocus`; section 6 |
+| `OnGotFocus(GotFocusEventArgs)`, `OnLostFocus(RoutedEventArgs)` overrides | `OnGotFocus(FocusChangedEventArgs)`, `OnLostFocus(FocusChangedEventArgs)` | Custom field controls |
+| `Visual.GetVisualRoot()` | `TopLevel.GetTopLevel(visual)` | Focus manager access; section 8 |
+| `Watermark` (and its foreground) | `PlaceholderText` with `PlaceholderForeground` | Placeholder styling and tests |
+| Watermark-named template parts | `PART_Placeholder`, `PART_FloatingPlaceholder` | Styles that reach into the TextBox template; section 4 |
+
+How to find the right name in your version instead of guessing: build and read the compiler error (it names the missing member or type), or list the members by reflection (`typeof(TextBox).GetProperties()`, `typeof(TextBox).Assembly.GetTypes()` filtered by name), or run the template probe from section 4.
+
+## 12. Observed pitfalls
 
 - Local values beat style setters and classes; set state colors only in styles.
+- Template-set values beat styles too (placeholder `Opacity`, `HighlightBackground`, `PopupBorder`); see section 3. Probe, then set a local value in `TemplateApplied` or override the theme resource.
 - A hover selector that reuses the rest brush hides hover.
 - `FontFamily="Name, Fallback"` only finds installed fonts; an embedded font needs its resource family name (for example `fonts:Inter#Inter` in one project's setup); check how your theme registers it.
 - Headless image tests with enter or exit animations need at least 200 ms before the frame capture, otherwise the image shows a half fade.
 - Stub-based UI tests that match a request by path plus query break when you add a query parameter; update every stub that wires that route.
 
-## 12. Checklist
+## 13. Checklist
 
 - [ ] No hex colors or magic numbers in view XAML; all values come from resources (grep).
 - [ ] Theme-dependent resources use `DynamicResource` (grep for `StaticResource` on brushes).
@@ -280,12 +404,14 @@ Run only one test process per working copy at a time and stop local servers firs
 - [ ] The field template has the bottom edge and focus underline (screenshot of rest and focus, both themes).
 - [ ] Transitions use the token durations and curves; reduced-motion test passes.
 - [ ] Behaviors are attached properties or control subclasses with headless tests.
+- [ ] Every style that targets a template part was checked with a probe test; values the template sets itself are overridden in `TemplateApplied` or through the theme resource (section 3).
+- [ ] Names that changed between Avalonia 11 and 12 match the project's version (section 11).
 - [ ] Parsers are pure classes with table tests; no `double` in the money path.
 - [ ] Groups are one tab stop; F6 cycles named regions (headless test).
 - [ ] Automation names, help, required and live-region settings present on custom controls (test or inspector).
 - [ ] Every selector and property used in this file was checked against the project's Avalonia version.
 
-## 13. Sources
+## 14. Sources
 
 Avalonia documentation and source are the authority for selectors, properties and the headless API: [Avalonia documentation][avalonia-docs] and [Avalonia source][avalonia-src]. The Fluent and WinUI rules these patterns implement are cited in the other reference files.
 

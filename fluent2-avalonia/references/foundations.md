@@ -90,7 +90,7 @@ Rules:
 - Status colors only for status: red danger, yellow or orange caution, green positive. Always pair with text or an icon. Warnings are not red when red means error in the same product. Because color alone fails color-blind users. ([Color][f2-color])
 - Contrast targets (WCAG): 4.5:1 for text, 3:1 for large text (18.5 px bold or 24 px regular and up) and for non-text elements such as icons and field borders. Fluent states conformance to WCAG 2.1 AA; WCAG 2.2 AA is stricter and a good target. Disabled controls are exempt. ([Accessibility][f2-a11y])
 - Field borders: Fluent's normal field border (`#d1d1d1`) has only about 1.53:1 against white (computed with the WCAG formula). Fluent closes the gap with a darker bottom edge (`#616161`, about 6.19:1). If your field border is lighter than 3:1, copy that approach: darken the bottom edge or the whole border. Do not assume a "strong line" token reaches 3:1; measure it. ([Input source][gh-input], [Light alias tokens][gh-lightcolor])
-- Placeholder text color Fluent default `#707070` on white, about 4.95:1. ([Input source][gh-input])
+- Placeholder text color Fluent default `#707070` on white, about 4.95:1 at full strength. Measure the effective contrast, with the `Opacity` of the text element applied: the Avalonia 12 Fluent TextBox template halves the placeholder opacity and the result measured about 2.4:1 in the light theme (observed, Avalonia 12.1.4). Effective color is the foreground blended over the surface by the opacity; check each theme and state. ([Input source][gh-input])
 - Fluent neutral values (light, Fluent default): text `#242424`, `#424242`, `#616161`, `#707070`; surfaces `#ffffff`, `#fafafa`, `#f5f5f5`, `#f0f0f0`, `#ebebeb`, `#e6e6e6`; borders `#d1d1d1`, `#e0e0e0`, `#f0f0f0`; subtle hover `#f5f5f5`, pressed `#e0e0e0`; overlay `rgba(0,0,0,0.4)`. Use them as a reference scale, not as a palette to paste over a brand. ([Grey tokens][gh-colors], [Light alias tokens][gh-lightcolor])
 - Mapping technique: when you describe a Fluent component, map its neutral/brand/status roles to your tokens in one table (surface 1 to your base surface, border 1 to your strong line, brand to your accent, status to your semantic colors) and keep that table next to the theme. Derived.
 - Check contrast per state and per theme (light, dark, high contrast), with a script, and keep the numbers in the pull request. Derived.
@@ -119,6 +119,30 @@ Rules:
 - Input underline: the 2 px brand underline grows from the center in 200 ms (scale 0 to 1, decelerate) on focus and disappears in 50 ms (accelerate) on blur. Nothing else on an input animates. ([Input source][gh-input])
 - Transitions that fit: show/hide for menus and dialogs, elevation changes, top-level swaps as a quick cross-fade instead of sliding large elements, container transforms. Skeletons may pulse or wave. ([Motion][f2-motion], [Skeleton][f2-skeleton])
 - Reduced motion: honor a "no motion" setting everywhere: durations to about 0, no flashing, no sudden jumps, motion only on the focused element, no information carried by animation alone. Fluent's source drops transitions to 0.01 ms. Include every transition in the switch, including opacity fades and press scales. ([Motion][f2-motion], [Button source][gh-button])
+- Testing reduced motion: a test is only practical when the override styles exist apart from the OS query. Attach every motion through a few shared style classes (for example `motion-color`, `motion-underline`, `motion-press`) and expose the override as a static method that the OS hook and the test both apply. Derived; sketch for Avalonia, confirm the API in your version.
+
+```csharp
+public static class ReducedMotion
+{
+    private static readonly string[] MotionClasses = ["motion-color", "motion-underline", "motion-press"];
+
+    public static Styles Overrides()
+    {
+        var styles = new Styles();
+        foreach (var name in MotionClasses)
+            styles.Add(new Style(x => x.OfType<Control>().Class(name))
+            {
+                Setters = { new Setter(Animatable.TransitionsProperty, new Transitions()) },
+            });
+        return styles;
+    }
+}
+
+// OS hook:  Application.Current!.Styles.Add(ReducedMotion.Overrides());
+// Test:     window.Styles.Add(ReducedMotion.Overrides());  then walk the visual tree and
+//           assert that no element has a transition with a non-zero duration.
+```
+
 - Do not animate actions the user repeats many times per minute with the keyboard. Derived.
 
 ## 9. Shape: radius and stroke
@@ -156,9 +180,10 @@ Because a deviation without a reason looks like a bug to the next reviewer, and 
 - [ ] Type sizes follow the ramp; nothing below 12 px; no all-caps strings (search for `TextCaseConverter`, uppercase transforms and upper-case literals).
 - [ ] Text contrast is 4.5:1 or better in every theme and state; borders and icons 3:1 (script output attached).
 - [ ] Field border contrast is measured, and the bottom edge or border is darkened if the border is under 3:1.
+- [ ] Placeholder contrast is measured with the element's `Opacity` applied (script output, each theme).
 - [ ] Colors come from resources (`DynamicResource`), with no hex literals in views (grep for `#` in `.axaml` view files).
 - [ ] Shadow tokens exist for card, popup and dialog; inline panels have none.
-- [ ] Every transition uses a token duration and curve; a "reduce motion" switch sets all of them to zero (test).
+- [ ] Every transition uses a token duration and curve; a "reduce motion" switch sets all of them to zero (test that applies the `Overrides()` styles directly, section 8).
 - [ ] Radius values follow the project tokens; deviations from Fluent are recorded.
 - [ ] Every deliberate difference from Fluent has a recorded reason (section 11).
 

@@ -11,7 +11,7 @@ This skill turns Microsoft's Fluent 2 guidance (design system, WinUI documentati
 
 If the project has a design brief, a token file or an established style, its values win over every Fluent value in this skill. Fluent supplies the behavior and the fallback numbers. When the project deliberately differs from Fluent, record the deviation with its reason in the project (template in [foundations.md](references/foundations.md), section 11), so later edits do not undo it and reviewers can tell "differs on purpose" from "differs by mistake".
 
-Values carry a tag: **Fluent default** (from Fluent guidance or source; starting point only), **Derived** (a recommendation built on Fluent principles; Microsoft does not state it) and **(derived, not verified)** (derived and unconfirmed; check before relying on it). Parser rules for time, date, number and money fields are Derived; Fluent defines the principles, not the masks.
+Values carry a tag: **Fluent default** (from Fluent guidance or source; starting point only), **Derived** (a recommendation built on Fluent principles; Microsoft does not state it) and **(derived, not verified)** (derived and unconfirmed; check before relying on it). Parser rules for time, date, number and money fields are Derived; Fluent defines the principles, not the masks. Behavior seen in a real project carries **observed** and the Avalonia version.
 
 ## How to work
 
@@ -35,7 +35,7 @@ When reviewing existing UI, report findings as a table with columns Finding, Rul
 - Read [content-design.md](references/content-design.md) when the task involves labels, titles, buttons text, error text, empty states, tooltips text, number and date formats.
 - Read [accessibility.md](references/accessibility.md) when the task involves keyboard model, focus order and restoration, F6 regions, shortcuts, screen readers, contrast, high contrast, reduced motion, Narrator checks.
 - Read [responsible-ai.md](references/responsible-ai.md) when the task involves AI output, drafts, assistants, agents, disclosure, consent, feedback, review scoring.
-- Read [avalonia-mapping.md](references/avalonia-mapping.md) when the task involves writing AXAML, selectors for states, resources and themes, transitions, attached behaviors, automation properties, focus code, headless tests.
+- Read [avalonia-mapping.md](references/avalonia-mapping.md) when the task involves writing AXAML, selectors for states, resources and themes, template parts and probing, transitions, attached behaviors, automation properties, focus code, headless tests, or the Avalonia 11 to 12 renames.
 
 Most UI tasks need two or three of these. A new input control, for example, needs [inputs.md](references/inputs.md), [accessibility.md](references/accessibility.md) and [avalonia-mapping.md](references/avalonia-mapping.md).
 
@@ -52,8 +52,8 @@ Foundations (details in [foundations.md](references/foundations.md))
 Inputs (details in [inputs.md](references/inputs.md))
 
 - Every input sits in a field with label above, optional help, and error under it; the error names the problem and the way out. Placeholders are examples, never labels, because they vanish on focus.
-- Tab into a text field puts the caret at the end; Tab into time, date, number, money and search fields selects all, because those are replaced, not edited.
-- Typing is filtered, commit happens on Enter or blur: parse, validate, write the display format back. Never overwrite or clear invalid input silently, and never reformat while typing.
+- Tab into a text field puts the caret at the end; Tab into time, date, number, money and search fields selects all, because those are replaced, not edited. Avalonia 12 selects all by default, so text fields need a behavior.
+- Typing is filtered, commit happens on Enter or blur: parse, validate, write the display format back. Never overwrite or clear invalid input silently, and never reformat while typing. After a failed commit the ViewModel must not keep the old value unnoticed.
 - Esc ladder: close the open list, then restore the changed field, then close the form. Enter commits the field and runs the default button in single-line fields only.
 - Money uses `decimal`, rejects extra fraction digits instead of rounding, and an empty field is not zero.
 - Dependent fields (end after start) recompute after commit, not during typing.
@@ -108,5 +108,6 @@ These are fallbacks. The project's tokens win. Web values come from Fluent UI Re
 
 - Fluent 2 pages were read through summaries; numbers are most reliable where source code or WinUI docs state the same value. The reference files say where a value is derived or unverified.
 - Not covered or not verified: visual comparison against real Fluent components, Avalonia support for spell check, on-screen keyboard input scope, Mica or Acrylic, high-contrast color mapping, behavior at 125 and 150 percent display scaling, the Microsoft Writing Style Guide, WinUI TeachingTip, command bar and calendar view, Segoe Fluent Icons.
-- Avalonia selectors, property names and the headless API vary by version. Confirm each against the project's version before relying on it.
+- Avalonia 11 and 12 are covered; the renames are listed in [avalonia-mapping.md](references/avalonia-mapping.md), section 11. Items marked **observed** were seen in one Avalonia 12.1.4 desktop project on Windows (Fluent theme) and were not re-checked on Avalonia 11 or on other platforms.
+- Avalonia selectors, property names, template parts and the headless API vary by version. Confirm each against the project's version before relying on it, with a compiler error, reflection or a template probe test.
 - Fluent is a Microsoft design system; this skill is an independent summary and is not affiliated with or endorsed by Microsoft.

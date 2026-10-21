@@ -31,7 +31,7 @@ Fluent 2 specifies the anatomy, states, labels, help and error text, and the beh
 | Required | Mark required fields with an asterisk next to the label and expose "required" to screen readers. If every field is required, one general note before the form is enough; a two-field sign-in needs none. The save button may stay disabled until required fields are filled. Fluent colors the asterisk red; a project may keep it neutral to avoid clashing with the error color (recorded deviation). | [Field][f2-field], [Label source][gh-label], [WinUI forms][wl-forms] |
 | Help text | Under the field, explains values or format. 12/16 in the third text tone, 2 px below the field (Fluent default). Fluent writes fragments without a final period and full sentences with one; stay consistent per project. | [Field][f2-field], [Field source][gh-field] |
 | Error text | Short and helpful; shows the way forward. Icon 12 px, danger color, 2 px below the field (Fluent default). Fluent's Field shows help and validation separately. A compact form may let the error replace the help line to avoid layout jumps (Derived); either way keep the error visible and never only in a tooltip. | [Field][f2-field], [Responsible AI][f2-rai] |
-| Placeholder | A brief hint or a format example, no final period. Never a replacement for the label: it disappears on focus, which burdens people with cognitive impairments, and it must also be exposed as an accessible name or hint. Fluent default placeholder color `#707070`. | [Input][f2-input], [Input source][gh-input] |
+| Placeholder | A brief hint or a format example, no final period. Never a replacement for the label: it disappears on focus, which burdens people with cognitive impairments, and it must also be exposed as an accessible name or hint. Fluent default placeholder color `#707070`; measure the effective contrast (section 2). | [Input][f2-input], [Input source][gh-input] |
 | Width | Roughly the expected input length. WinUI: slightly wider than the longest expected value; if that is very wide, split into two fields. Set `MaxLength` and tell the user when the limit is reached. Document the limit per field (for example name 80, phone 30, email 254). | [Input][f2-input], [WinUI text box][wl-textbox] |
 | Size (web source) | Heights 24, 32, 40 (small, medium, large), radius 4, horizontal padding 12 (medium), icons 16, 20, 24, text 14/20. WinUI minimum height 32, minimum width 64. A desktop brief may use 34 or another height; keep one height for all controls. | [Input source][gh-input], [WinUI defaults][winui-generic] |
 
@@ -50,6 +50,10 @@ Fluent distinguishes seven states, each driven by its own tokens. The first five
 | Error | Border in the danger color except on focus; message under the field. Fields also support warning (dark orange) and success (green). | A warning such as "a record with this name exists" fits a field better than a blocking error. |
 
 Sources: [Button source][gh-button], [Input source][gh-input], [Field source][gh-field], [Link source][gh-link], [Button][f2-button], [Field][f2-field], [Label][f2-label].
+
+Placeholder contrast: measure the effective contrast, not the token. The 4.95:1 of `#707070` on white holds for the full-strength color. A template can lower the `Opacity` of the placeholder element: the Avalonia 12 Fluent TextBox template halves it, and the placeholder measured about 2.4:1 in the light theme (observed, Avalonia 12.1.4). Compute the ratio from the foreground blended over the field surface by the element's `Opacity`, per theme and per state, and fail the field when it is under 4.5:1. A style cannot change the template's value (`avalonia-mapping.md`, section 3); set it in `TemplateApplied` or choose a darker foreground. Derived.
+
+Decision point, error border on focus: Fluent draws the danger border except while the field has focus, where the border turns neutral and the brand underline takes over; the message under the field stays. A project may keep the danger border while the field is focused, so a user who is correcting the value still sees which field is wrong. Both are valid; record the choice (`foundations.md`, section 11) and cover the focused-with-error state in a screenshot and a test. Derived.
 
 ## 3. Behavior matrix
 
@@ -83,6 +87,10 @@ All typed fields (number, money, time, date) share one pipeline. Build it once a
 3. Commit on Enter or blur: parse the raw text with a tolerant parser (see the tables below) into a typed value (`decimal`, `TimeOnly`, `DateOnly`, `int`) or an error.
 4. On success, write the display format back to the text (for example `930` becomes `09:30`) and raise the value to the ViewModel. Dependent fields (end time after start time) recompute only now.
 5. On failure, keep the text, mark the field invalid and show a message that names the problem and the valid range. Do not overwrite or clear the input silently; WinUI's "overwrite invalid input" mode swallows the user's text, so do not enable it for important data. ([WinUI number box][wl-numberbox])
+   No stale value after a failed commit: the ViewModel must not silently keep the previous valid value while the field shows the rejected text, or a Save button writes a value the user cannot see. Pick one of two patterns by binding style (Derived):
+   - String binding (the ViewModel holds the text): publish the raw text with no parsed value, so the ViewModel sees "no value" instead of the old one.
+   - Typed binding (`TimeOnly? Value`, `decimal? Amount`): add a read-only `IsValid` flag on the control, bound back to the ViewModel (`Mode=OneWayToSource`), and make every Save-style command report `CanExecute` false while a bound field is invalid. A successful commit and Esc reset the flag.
+   Test: type garbage, commit, assert Save is disabled (or the value is empty); type a valid value, commit, assert it is enabled again.
 6. Esc restores the last committed value and selects it. ([Spin button source][gh-spinbuttonlogic])
 7. An empty field means "no value", which is not zero. Required fields report the empty state as an error; optional ones commit "no value".
 
@@ -91,7 +99,7 @@ Because separating raw text from the parsed value lets a user type freely, makes
 ## 5. Single-line text
 
 - Name, address, email, phone, short note. Enter in a single-line field commits the field and triggers the form's default button. Not in multi-line fields. Derived. ([WinUI dialogs][wl-dialogs])
-- Tab entry places the caret at the end with nothing selected, because editing is the common case; fast fields (time, number, search) select all, because replacing is. WinUI recommends selecting all when replacement is the main case. ([WinUI text box][wl-textbox])
+- Tab entry places the caret at the end with nothing selected, because editing is the common case; fast fields (time, number, search) select all, because replacing is. WinUI recommends selecting all when replacement is the main case. Avalonia 12 already selects all on Tab into a single-line `TextBox` (observed, Avalonia 12.1.4), which is the opposite of what text fields need; set the caret to the end with a behavior (`avalonia-mapping.md`, section 6) and test it first. ([WinUI text box][wl-textbox])
 - Click always places the caret and selects nothing. Double-click selects a word or a segment, triple-click the line, Ctrl+A everything. Derived.
 - Clear (x) button: WinUI shows it in focused, single-line, editable fields that contain text. Use it for search fields; skip it in ordinary form fields where an accidental click could erase required data (Derived). ([WinUI text box][wl-textbox], [Searchbox][f2-searchbox])
 - Paste: WinUI's `MaxLength` does not limit pasted text. Intercept paste, remove line breaks and leading or trailing spaces (including non-breaking), truncate to the limit and show a warning such as "Shortened to 80 characters." (Derived.) ([WinUI text box][wl-textbox])
@@ -151,13 +159,14 @@ Parser table (24-hour example locale):
 | `930`, `0930` | 09:30 |
 | `9:30`, `9.30`, `9,30` | 09:30 |
 | `9:5` | 09:05 |
-| `24`, `9:60`, `abc` | Error: "The time is between 00:00 and 23:59." |
+| `24`, `9:60` | Range error: "The time is between 00:00 and 23:59." |
+| `abc` | Format error: "Enter a time such as 09:30." |
 
 A field that explicitly allows "until midnight" may accept 24:00. For 12-hour locales extend the parser with am/pm suffixes and keep the same display rule.
 
 - Allowed characters: digits, colon, dot, comma; at most five characters. Tab selects all; click places the caret; double-click selects hour or minute.
 - Keys: Up/Down plus or minus the step, Shift+Up/Down one minute, Page Up/Down one hour, Home/End only with limits (for example opening hours). No wrap past midnight: clamp. Wheel only while focused.
-- Commit: on Enter or blur write `HH:mm`. Dependent fields (end after start) recalculate only after commit, never during typing. End before start is an error on the field: "The end is before the start."
+- Commit: on Enter or blur write `HH:mm`. Dependent fields (end after start) recalculate only after commit, never during typing. End before or equal to start is an error on the field: "The end must be after the start." A zero-length range is rarely meant; a field that allows it says so.
 - Accessibility: name "Start, time"; the peer reports a time value; a help text states the format. ([WinUI accessibility][wl-a11y])
 
 ## 11. Date field
@@ -187,7 +196,8 @@ A two-digit year resolves to the century closest to today; for a birthday it mus
 ## 12. Choice fields: select, combo box, list
 
 - Pick the component by the number of options. Fluent: a native-looking Select for at least four options; Dropdown for custom list styling and multi-select; Combobox for choosing or typing with filter, long lists and free input. WinUI: fewer than five options are better as radio buttons or checkboxes; a long list of rich items is a list view; selection that is secondary and has a default should not dominate the layout. A project rule such as "2 to 4 radio buttons, up to about 12 in a list, beyond that type-ahead" is a valid concrete choice. ([Select][f2-select], [Dropdown][f2-dropdown], [Combobox][f2-combobox], [WinUI combo box][wl-combobox])
-- Open and pick: Enter or Alt+Down opens (Alt+Down: derived, not verified), Up/Down highlight, Enter picks, Esc closes without change, letters jump to a matching item (also when closed). In WinUI, arrows in an open list do not change the selection until Enter or click; Esc restores the initial value. Fluent says Space picks the highlighted item; apply that only when the user is not filtering, because text input has priority. ([Combobox][f2-combobox], [WinUI combo box][wl-combobox], [WinUI keyboard][wl-keyboard])
+- Open and pick: Enter or Alt+Down opens (Alt+Down: observed in the Avalonia 12 ComboBox), Up/Down highlight, Enter picks, Esc closes without change, letters jump to a matching item (also when closed). In WinUI, arrows in an open list do not change the selection until Enter or click; Esc restores the initial value. Fluent says Space picks the highlighted item; apply that only when the user is not filtering, because text input has priority. ([Combobox][f2-combobox], [WinUI combo box][wl-combobox], [WinUI keyboard][wl-keyboard])
+- Avalonia 12 ComboBox (observed, Avalonia 12.1.4): the shipped control already opens with Enter and Alt+Down, moves the highlight with the arrows without selecting, closes with Esc without change and jumps to an item by letter, so test these before you write a behavior. With keyboard focus it fills itself with the accent color (template part `HighlightBackground`), which clashes with the neutral field look and lowers text contrast. A style cannot undo it, because the template sets the value itself (`avalonia-mapping.md`, section 3): override the theme resource the part reads, or set the part's `Background` in `TemplateApplied`, and check the result with the template probe (section 4 there) and a focus screenshot.
 - Editable: submit on Enter or blur when no item matches; if invalid, show a field error and keep the text, rather than quietly resetting. Valid free input may optionally be added to the list. Derived. ([WinUI combo box][wl-combobox])
 - List content: items phrased in parallel (all nouns or all verbs), no shared first word, "None" where meaningful, sentence case. One line per item, logical order: most frequent first, names alphabetical, numbers numeric, dates chronological. Long lists scroll. ([Dropdown][f2-dropdown], [WinUI combo box][wl-combobox])
 - Menu and list surface (Fluent default, source): min width 138, max width 300, padding 4, item min height 32, radius 4 (WinUI overlays 8), shadow 16. A list item height of 40 matches WinUI list rows; keep to one project value. Show about eight items before scrolling; the list is as wide as the field (Derived). ([Menu source][gh-menu], [Geometry][wl-geometry])
@@ -207,6 +217,8 @@ A two-digit year resolves to the century closest to today; for a birthday it mus
 - [ ] The label, help text and error are exposed through automation (`AutomationProperties.Name`, `HelpText`, `LabeledBy`) (test or Accessibility Insights).
 - [ ] Required marker plus `IsRequiredForForm`; a "required" test case exists.
 - [ ] Border contrast 3:1 or a darker bottom edge (script output).
+- [ ] Placeholder contrast measured with the element's `Opacity` applied, 4.5:1 per theme (script output).
+- [ ] The error-on-focus choice (neutral like Fluent, or danger border kept) is recorded and drawn (screenshot of a focused field with an error).
 - [ ] All five or seven states drawn: rest, hover, focus, disabled, error (and pressed, selected where relevant); screenshot per state in light and dark.
 - [ ] Disabled fields keep label and help readable; an explanation is available when the reason is not obvious.
 - [ ] A `MaxLength` or documented limit exists where relevant; paste handling tested.
@@ -223,6 +235,7 @@ A two-digit year resolves to the century closest to today; for a birthday it mus
 ### Number, money
 
 - [ ] Parser unit tests cover every row of the tables above plus an invalid and an empty case.
+- [ ] After a failed commit Save is disabled or the value is empty, never the old value (test, section 4).
 - [ ] Money uses `decimal` and rejects extra fraction digits (grep the diff for `double` and `float`).
 - [ ] Up/Down, Page, Home/End, wheel-only-when-focused, clamp without wrap: headless keyboard test.
 - [ ] Step buttons are disabled at the limits while the input remains active.
@@ -230,7 +243,8 @@ A two-digit year resolves to the century closest to today; for a birthday it mus
 
 ### Time, date
 
-- [ ] Parser tables are unit tests; ambiguous and impossible inputs produce a field error that names the valid range.
+- [ ] Parser tables are unit tests; impossible inputs produce a range error that names the valid range, unreadable inputs a format error with an example.
+- [ ] End equal to start is an error unless the field says otherwise (test).
 - [ ] Dependent fields recompute only after commit (test that typing does not change the end field).
 - [ ] Calendar popup: arrows, Page keys, Enter selects, Esc closes without change, focus returns to the field (headless test).
 - [ ] No silent clamp to min or max.

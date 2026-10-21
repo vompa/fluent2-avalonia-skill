@@ -21,7 +21,7 @@ Read this file when you design or review keyboard navigation, focus order and fo
 
 - Fluent components meet or exceed WCAG 2.1 AA. WCAG 2.2 AA is stricter and a sound target for a new product. ([Accessibility][f2-a11y])
 - Text contrast 4.5:1; large text (18.5 px bold or 24 px regular and above) 3:1; non-text elements, icons and field borders 3:1. Disabled controls are exempt. ([Accessibility][f2-a11y])
-- A lighter third text tone must meet these ratios too: measure it rather than trusting its token name, and restrict it to large text or icons if it falls short. Because "secondary" colors are the usual place where contrast quietly fails. Derived.
+- A lighter third text tone must meet these ratios too: measure it, with the element's `Opacity` applied, rather than trusting its token name, and restrict it to large text or icons if it falls short. Because "secondary" colors are the usual place where contrast quietly fails. Derived.
 - Reflow for web: usable at 400 percent zoom down to 320 px width. For a desktop app, define and document a minimum window size and support text scaling up to 200 percent without clipping. ([Accessibility][f2-a11y])
 
 ## 2. Keyboard as the primary model
@@ -29,6 +29,7 @@ Read this file when you design or review keyboard navigation, focus order and fo
 - Everything operable with a pointer is operable with the keyboard. Tab order equals visual order; only operable elements are tab stops. Inside groups (radio buttons, lists, button strips) use arrow keys for inner navigation, so the group is one tab stop. ([Keyboard accessibility][wl-kbdaccess], [Keyboard interactions][wl-keyboard])
 - Key meanings (WinUI): Tab and Shift+Tab move between operable elements; Space activates the focused element (not while typing text); Enter activates buttons and links, opens choice controls and confirms them; in lists Enter does what Space does unless an extra action exists; Esc cancels only transient surfaces and never page navigation; Home and End go to first and last; Page Up and Down move by page; text input outranks all other keys. ([Keyboard interactions][wl-keyboard])
 - Initial focus goes to the first or most common element, never to a destructive action. ([Keyboard accessibility][wl-kbdaccess])
+- Esc and parents that handle keys in the tunnel phase: a parent view that handles Esc (or Enter, arrows) while the event tunnels down runs before the focused field, so the field never restores its value and the panel closes with the edit lost (observed, Avalonia 12.1.4). Let the parent ask first whether the focused field has a pending change (an attached property such as `HasPendingChange`, true while the text differs from the committed value or a popup is open) and leave the key to the field while it is true. Pattern and code: `avalonia-mapping.md`, section 8.
 - Field-level behavior (select on Tab, Esc ladder, commit on Enter) is in `inputs.md`.
 
 ## 3. Focus order and restoration
@@ -87,6 +88,7 @@ Read this file when you design or review keyboard navigation, focus order and fo
 - [ ] Arrow keys navigate inside groups; each group is one tab stop.
 - [ ] Focus returns to the invoker after every transient surface closes (test per surface).
 - [ ] Focus is never lost when the focused control hides (test: close a panel, press an arrow key).
+- [ ] Esc in an edited field restores the value before an enclosing panel closes, also when the panel handles keys in the tunnel phase (test: edit, press Esc, assert old value and panel still open; press Esc again, assert closed).
 - [ ] F6 and Shift+F6 cycle the regions; each region has a name (test).
 - [ ] Shortcuts appear in tooltips and `AcceleratorKey`; no tooltip names a shortcut that does not exist.
 - [ ] Contrast measured for text (4.5:1), large text and non-text (3:1) in all themes and states.

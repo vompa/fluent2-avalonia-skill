@@ -4,6 +4,8 @@ A skill for Claude Code and Claude.ai that teaches Claude to build and review Av
 
 It is aimed at developers who build Avalonia (AXAML) apps with Claude and want consistent, accessible, keyboard-friendly interfaces without re-deriving the rules each time. Typical triggers: "build a time field", "review my TextBox style", "add an AI suggestion panel", "why can't I tab through this form".
 
+Tested in practice on an Avalonia 12 desktop app; Avalonia 11 names are listed alongside.
+
 The skill never replaces your own design brief. If a project has a brief or tokens, those values win; Fluent values are the fallback, and deliberate deviations are recorded with a reason.
 
 ## Install
