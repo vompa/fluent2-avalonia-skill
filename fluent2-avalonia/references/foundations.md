@@ -108,6 +108,7 @@ Rules:
 - Fluent default shadow depths (blur radius): 2, 4, 8, 16, 28, 64; each is a sharp key shadow plus a soft ambient one with one light direction. On Windows, outline strokes replace the key shadow. ([Elevation][f2-elev])
 - Typical use (Fluent default): card 2 or 4, tooltip 8, toast 8, menu and listbox 16, drawer 28, dialog 64. Overlaying surfaces carry the higher values. An inline (non-overlaying) side panel needs no shadow, a border is enough. Because shadow communicates "floats above content". ([Elevation][f2-elev], [Toast source][gh-toast])
 - Provide a small set of shadow tokens: card, popup (menu, list, tooltip) and dialog. Hover should not add a shadow in a flat design. Derived.
+- A shadow carries a color, so it is a token like any other: declare each one as a `BoxShadows` resource per theme (dark themes need a stronger alpha) and never write `BoxShadow="0 2 8 0 #40000000"` in a view. Because a literal in a view cannot follow the theme and slips past a scan that only looks for color attributes. Resource form and scan: `avalonia-mapping.md`, section 2. Derived.
 - Materials: Solid is the common one; Smoke dims everything behind a modal (always translucent black, not theme dependent); Acrylic suits short-lived, light-dismiss surfaces; Mica suits the window background. Avalonia transparency support varies by Windows version and compositor; treat Acrylic and Mica as optional and test them. ([Material][f2-material])
 
 ## 8. Motion
@@ -119,30 +120,7 @@ Rules:
 - Input underline: the 2 px brand underline grows from the center in 200 ms (scale 0 to 1, decelerate) on focus and disappears in 50 ms (accelerate) on blur. Nothing else on an input animates. ([Input source][gh-input])
 - Transitions that fit: show/hide for menus and dialogs, elevation changes, top-level swaps as a quick cross-fade instead of sliding large elements, container transforms. Skeletons may pulse or wave. ([Motion][f2-motion], [Skeleton][f2-skeleton])
 - Reduced motion: honor a "no motion" setting everywhere: durations to about 0, no flashing, no sudden jumps, motion only on the focused element, no information carried by animation alone. Fluent's source drops transitions to 0.01 ms. Include every transition in the switch, including opacity fades and press scales. ([Motion][f2-motion], [Button source][gh-button])
-- Testing reduced motion: a test is only practical when the override styles exist apart from the OS query. Attach every motion through a few shared style classes (for example `motion-color`, `motion-underline`, `motion-press`) and expose the override as a static method that the OS hook and the test both apply. Derived; sketch for Avalonia, confirm the API in your version.
-
-```csharp
-public static class ReducedMotion
-{
-    private static readonly string[] MotionClasses = ["motion-color", "motion-underline", "motion-press"];
-
-    public static Styles Overrides()
-    {
-        var styles = new Styles();
-        foreach (var name in MotionClasses)
-            styles.Add(new Style(x => x.OfType<Control>().Class(name))
-            {
-                Setters = { new Setter(Animatable.TransitionsProperty, new Transitions()) },
-            });
-        return styles;
-    }
-}
-
-// OS hook:  Application.Current!.Styles.Add(ReducedMotion.Overrides());
-// Test:     window.Styles.Add(ReducedMotion.Overrides());  then walk the visual tree and
-//           assert that no element has a transition with a non-zero duration.
-```
-
+- Testing reduced motion: a test is only practical when the override styles exist apart from the OS query, so expose them as a plain method that the OS hook and the test both apply. The override must outrank the app's own motion: a class on the root window with a style that selects only the type loses against setters under `.class` or `:pressed` (observed, Avalonia 12.1.4). Use an activator selector, add it to the `Application` before the first window opens, and let the test open every page, ignore invisible template parts and fail on any visible transition with a duration above zero. Pattern, code and test: `avalonia-mapping.md`, section 5 and section 10 (Reading transitions). Derived.
 - Do not animate actions the user repeats many times per minute with the keyboard. Derived.
 
 ## 9. Shape: radius and stroke
@@ -158,7 +136,7 @@ public static class ReducedMotion
 - Two layers: global (raw hex, type, radius, stroke, animation) and alias (meaning, such as "text on brand"). Themes: light, dark, high contrast and brand color. ([Tokens][f2-tokens])
 - Apply fonts, base colors and theme once at the root (the equivalent of the Fluent provider) and override locally only on purpose. ([Fluent provider][f2-fluentprovider])
 - Keep one source of truth for tokens (a design brief plus a token file); do not maintain a parallel Figma kit by hand unless you also keep it in sync. The Windows UI kit lives in Figma, linked from the Fluent 2 Windows page. ([Get started: design][f2-start-design], [Windows][f2-windows])
-- In XAML never hard-code hex values in views. Hard-coded colors are the reason high contrast and dark mode fail. See `avalonia-mapping.md`.
+- In XAML never hard-code colors in views: not hex, not named colors (`White`, `Black`), not the color inside a shadow string. Hard-coded colors are the reason high contrast and dark mode fail. Scans that catch all three: `avalonia-mapping.md`, section 2.
 - High contrast is not in many design briefs. Treat it as a theme to add: all colors reachable through resources, tested with the OS contrast themes. Whether your Avalonia version maps system colors automatically is (derived, not verified). ([Accessibility overview][wl-a11y])
 
 ## 11. Recording deviations
@@ -181,8 +159,8 @@ Because a deviation without a reason looks like a bug to the next reviewer, and 
 - [ ] Text contrast is 4.5:1 or better in every theme and state; borders and icons 3:1 (script output attached).
 - [ ] Field border contrast is measured, and the bottom edge or border is darkened if the border is under 3:1.
 - [ ] Placeholder contrast is measured with the element's `Opacity` applied (script output, each theme).
-- [ ] Colors come from resources (`DynamicResource`), with no hex literals in views (grep for `#` in `.axaml` view files).
-- [ ] Shadow tokens exist for card, popup and dialog; inline panels have none.
+- [ ] Colors come from resources (`DynamicResource`), with no hex literals, named colors or inline `BoxShadow` values in views (the scans in `avalonia-mapping.md`, section 2, over the view folders; a grep for `#` alone misses named colors and can miss shadow colors).
+- [ ] Shadow tokens exist for card, popup and dialog as `BoxShadows` resources per theme; inline panels have none.
 - [ ] Every transition uses a token duration and curve; a "reduce motion" switch sets all of them to zero (test that applies the `Overrides()` styles directly, section 8).
 - [ ] Radius values follow the project tokens; deviations from Fluent are recorded.
 - [ ] Every deliberate difference from Fluent has a recorded reason (section 11).

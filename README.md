@@ -4,7 +4,7 @@ A skill for Claude Code and Claude.ai that teaches Claude to build and review Av
 
 It is aimed at developers who build Avalonia (AXAML) apps with Claude and want consistent, accessible, keyboard-friendly interfaces without re-deriving the rules each time. Typical triggers: "build a time field", "review my TextBox style", "add an AI suggestion panel", "why can't I tab through this form".
 
-Tested in practice on an Avalonia 12 desktop app; Avalonia 11 names are listed alongside.
+Tested in practice across three implementation rounds on an Avalonia 12 desktop app; Avalonia 11 names are listed alongside.
 
 The skill never replaces your own design brief. If a project has a brief or tokens, those values win; Fluent values are the fallback, and deliberate deviations are recorded with a reason.
 
@@ -37,6 +37,7 @@ fluent2-avalonia/
     accessibility.md          keyboard, focus, F6 regions, screen readers, contrast, motion
     responsible-ai.md         AI disclosure, control, agents, review rubric
     avalonia-mapping.md       Fluent concepts as selectors, resources, behaviors, headless tests
+    avalonia-12-notes.md      Avalonia 11 to 12 names, changed behavior, observed pitfalls
   evals/evals.json            three realistic test prompts
 scripts/validate.py           structure and link checks (standard library only)
 ```

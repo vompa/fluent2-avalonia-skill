@@ -5,7 +5,7 @@ description: Fluent 2 design rules, component behavior and review checklists for
 
 # Fluent 2 for Avalonia
 
-This skill turns Microsoft's Fluent 2 guidance (design system, WinUI documentation, Fluent UI source) into rules, numbers, checklists and test patterns for Avalonia desktop apps. It is an independent, paraphrased summary with a source link on each rule. It does not replace the project's own design brief. Examples target Avalonia 12; section 11 of [avalonia-mapping.md](references/avalonia-mapping.md) lists the Avalonia 11 names.
+This skill turns Microsoft's Fluent 2 guidance (design system, WinUI documentation, Fluent UI source) into rules, numbers, checklists and test patterns for Avalonia desktop apps. It is an independent, paraphrased summary with a source link on each rule. It does not replace the project's own design brief. Examples target Avalonia 12; [avalonia-12-notes.md](references/avalonia-12-notes.md) lists the Avalonia 11 names, behavior changes and observed pitfalls.
 
 ## The one rule that comes first
 
@@ -33,9 +33,10 @@ When reviewing existing UI, report findings as a table with columns Finding, Rul
 - Read [dialogs-and-messages.md](references/dialogs-and-messages.md) when the task involves dialogs, drawers, popovers, message bars, toasts, progress, spinners, skeletons; choosing the right surface.
 - Read [data-display.md](references/data-display.md) when the task involves lists, tables, cards, avatars, badges, accordions, dividers, images.
 - Read [content-design.md](references/content-design.md) when the task involves labels, titles, buttons text, error text, empty states, tooltips text, number and date formats.
-- Read [accessibility.md](references/accessibility.md) when the task involves keyboard model, focus order and restoration, F6 regions, shortcuts, screen readers, contrast, high contrast, reduced motion, Narrator checks.
+- Read [accessibility.md](references/accessibility.md) when the task involves keyboard model, focus order and restoration, tab order, F6 regions, shortcuts, screen readers and accessible names (name scan), contrast, high contrast, reduced motion, Narrator checks.
 - Read [responsible-ai.md](references/responsible-ai.md) when the task involves AI output, drafts, assistants, agents, disclosure, consent, feedback, review scoring.
-- Read [avalonia-mapping.md](references/avalonia-mapping.md) when the task involves writing AXAML, selectors for states and value precedence, resources and themes, template parts (required parts, probing), transitions, attached behaviors (roving tab stop, toolbar overflow panel, tooltip defaults), automation properties, focus code, headless tests and their limits, or the Avalonia 11 to 12 renames.
+- Read [avalonia-mapping.md](references/avalonia-mapping.md) when the task involves writing AXAML, selectors for states and value precedence, resources and themes, template parts (required parts, probing), transitions and the reduced-motion override, attached behaviors (roving tab stop, toolbar overflow panel, tooltip defaults, F6 regions), automation properties and name scans, focus code, tab order walks, headless tests and their limits.
+- Read [avalonia-12-notes.md](references/avalonia-12-notes.md) when code from Avalonia 11 examples does not compile or behave, an attached property, a selector or a test filter fails in Avalonia 12, or you want the list of observed pitfalls.
 
 Most UI tasks need two or three of these. A new input control, for example, needs [inputs.md](references/inputs.md), [accessibility.md](references/accessibility.md) and [avalonia-mapping.md](references/avalonia-mapping.md).
 
@@ -46,8 +47,8 @@ Foundations (details in [foundations.md](references/foundations.md))
 - Use a 4 px grid with 2, 6 and 10 as nudges. A single grid keeps rhythm predictable.
 - Type: nothing under 12 px Regular or 14 px Semibold; sentence case; no bold or italic as the only meaning carrier. Small text is unreadable for some users.
 - Contrast: 4.5:1 for text, 3:1 for large text, icons and field borders; measure per state and theme. Fluent's own field border is about 1.5:1 and relies on a darker bottom edge, so do not assume a border token passes.
-- Color comes from semantic resources, never hex in views. Hard-coded colors break dark and high-contrast themes.
-- Motion explains state changes: hover and color about 100 ms, enter about 200 ms, exit shorter; a reduced-motion setting zeroes everything, including fades and press scales.
+- Color comes from semantic resources, never hex, named colors or shadow colors in views. Hard-coded colors break dark and high-contrast themes.
+- Motion explains state changes: hover and color about 100 ms, enter about 200 ms, exit shorter; a reduced-motion setting zeroes everything, including fades and press scales, and a test proves it on every page.
 
 Inputs (details in [inputs.md](references/inputs.md))
 
@@ -74,13 +75,13 @@ Content (details in [content-design.md](references/content-design.md))
 
 Accessibility (details in [accessibility.md](references/accessibility.md))
 
-- The keyboard is a first-class path: tab order equals reading order, groups are one tab stop, F6 switches regions, shortcuts appear in tooltips.
-- Every element has an accessible name; fields expose required, help and error; messages use live regions (assertive for errors).
+- The keyboard is a first-class path: tab order equals reading order (Tab follows source order, so check it with a test), groups are one tab stop, F6 switches regions, shortcuts appear in tooltips.
+- Every element has an accessible name, and Avalonia's derived names are often a type name or empty, so scan them in a test; fields expose required, help and error; messages use live regions (assertive for errors).
 - Verify with a screen reader pass and record it; do not rely on code inspection alone.
 
 AI features (details in [responsible-ai.md](references/responsible-ai.md))
 
-- Every AI output carries a visible AI mark and the approved disclaimer; drafts are never sent without a review step; side effects can be declined and undone; each AI function has its own off switch; failures offer a way without AI.
+- Every AI output carries a visible AI mark and the approved disclaimer; drafts are never sent without a review step; side effects can be declined and undone; each AI function has its own off switch; failures offer a way without AI; anything that prepares or proposes without being asked is an agent.
 
 ## Fluent default values at a glance
 
@@ -108,6 +109,6 @@ These are fallbacks. The project's tokens win. Web values come from Fluent UI Re
 
 - Fluent 2 pages were read through summaries; numbers are most reliable where source code or WinUI docs state the same value. The reference files say where a value is derived or unverified.
 - Not covered or not verified: visual comparison against real Fluent components, Avalonia support for spell check, on-screen keyboard input scope, Mica or Acrylic, high-contrast color mapping, behavior at 125 and 150 percent display scaling, the Microsoft Writing Style Guide, WinUI TeachingTip, command bar and calendar view, Segoe Fluent Icons.
-- Examples target Avalonia 12; the Avalonia 11 names are listed in [avalonia-mapping.md](references/avalonia-mapping.md), section 11. Items marked **observed** were seen in one Avalonia 12.1.4 desktop project on Windows (Fluent theme) and were not re-checked on Avalonia 11 or on other platforms.
+- Examples target Avalonia 12; the Avalonia 11 names are listed in [avalonia-12-notes.md](references/avalonia-12-notes.md). Items marked **observed** were seen in one Avalonia 12.1.4 desktop project on Windows (Fluent theme) and were not re-checked on Avalonia 11 or on other platforms.
 - Avalonia selectors, property names, template parts and the headless API vary by version. Confirm each against the project's version before relying on it, with a compiler error, reflection or a template probe test.
 - Fluent is a Microsoft design system; this skill is an independent summary and is not affiliated with or endorsed by Microsoft.

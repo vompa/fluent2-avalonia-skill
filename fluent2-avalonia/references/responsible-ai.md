@@ -27,6 +27,8 @@ Language note: example strings are English; use the project's language. Disclaim
 
 Agents act with more autonomy, so they need all of the above plus the following. ([Responsible AI][f2-rai], [Agent UX][ms-agent-ux], [Agent principles][ms-agent-resp])
 
+- What counts as an agent: any function that prepares or proposes something without the user starting it. A function that reads incoming requests and prepares appointments, sorts a mailbox on its own or fills a form in the background is an agent, even if the product calls it a "suggestion" or "assistant". Such a function needs the agent criteria below and in the rubric: what the user can expect before the first interaction (trigger, access, powers), a protocol of what it did, and confirm or decline for every result. Because users judge the risk by what happens without them, not by what the feature is called. Derived.
+
 - Disclose activation and autonomy: what triggers the agent, what it may read, what it may do. Example text: "Reads requests, proposes free times, books only after confirmation" or "Books on its own within these rules". Let the autonomy level be set per location or scope. ([Responsible AI][f2-rai])
 - Let people approve or reject an agent action before it runs, explain how to correct, refine or undo, and never present an agent action as final. Show agent-made bookings as records with the AI badge and "Confirm" and "Decline" buttons; offer "Undo" in a toast and on the record; avoid wording like "booked for good" before a person confirms. ([Responsible AI][f2-rai], [Agent UX][ms-agent-ux])
 - Keep background activity inspectable and controllable: an activity log (who or what, when, with a link to the record) and a status line that says what the agent is doing now. ([Agent UX][ms-agent-ux])
@@ -49,6 +51,19 @@ Agents act with more autonomy, so they need all of the above plus the following.
 
 ([Responsible AI][f2-rai])
 
+Feedback without a backend. A project that has no server for feedback can still collect it honestly (Derived):
+
+- Store each feedback locally, one JSON line per entry (time, AI function, rating, category, optional comment), in a file in the app's data folder. Decide whether the AI output text goes into the entry, and say so in the purpose sentence, because output text can contain personal data.
+
+```csharp
+var entry = new FeedbackEntry(DateTimeOffset.UtcNow, Function: "reply-draft", Rating: "not-helpful", Category: "inaccurate");
+File.AppendAllText(feedbackPath, JsonSerializer.Serialize(entry) + Environment.NewLine);
+```
+
+- Write the purpose sentence so that it states exactly what happens, for example "Your rating is saved in a file on this computer. It is not sent anywhere." Do not write "helps us improve" while nothing leaves the device. Reword the sentence the day a server exists.
+- Name the missing part as its own task in the report: the transport to a server and the evaluation of the entries are open work, not part of this feature. Score the "Feedback" criterion by what exists (local collection with categories), and list the rest as open.
+- Test: a rating appends exactly one line, a second rating appends a second line, and the file is valid JSON per line.
+
 ## 4. Review rubric
 
 Score each criterion from 0 to 3; criteria that do not apply may be marked not applicable, and the maximum shrinks accordingly. Grades: A at 90 percent or more (ready to ship); B at 80 to 90 percent (every criterion at least 2, an improvement plan for each 0, re-review); C at 75 to 80 percent (fix all 0s, re-score); below 75 percent or two or more zeros: fail. Automatic fail if "Avoid over-reliance" scores 0 or 1, or if "Realistic expectations" scores 0 or 1 for agents. ([Responsible AI][f2-rai])
@@ -67,11 +82,15 @@ Score each criterion from 0 to 3; criteria that do not apply may be marked not a
 
 Mark every criterion you did not actually test as "not scored", and say so. The table is a template; scoring needs a real review of the running feature.
 
+First-use card. The criterion "Expectations, before interaction" stays in the rubric: a one-time card that says what the AI can and cannot do. The card may be missing when the brief for the feature does not ask for it. Then score the criterion one point lower than the rest of the evidence would give (at most 2) and report the card as open, so the gap is visible instead of silently accepted. A missing card never turns into a pass by omission. Derived.
+
 ## 5. Checklist
 
 - [ ] Every AI output shows the pill and the disclaimer line (search the views for AI output bindings without the pill).
 - [ ] AI drafts are never sent without a visible review step (test: no code path sends without a user command).
-- [ ] The first-use explainer exists and is dismissible once (test persistence).
+- [ ] The first-use explainer exists and is dismissible once (test persistence); if the brief did not ask for it, the criterion is scored lower and reported as open.
+- [ ] Every function that prepares or proposes something on its own is treated as an agent: expectation text, activity log, confirm and decline (review of the feature list).
+- [ ] Without a feedback backend: entries are stored locally as JSON lines and the purpose sentence says exactly that; server and evaluation are listed as open (test and review).
 - [ ] Each AI function has its own switch and a one-sentence purpose (settings review).
 - [ ] Every AI side effect shows target and consequence first, and has Decline and Undo (test).
 - [ ] The "Why this suggestion?" panel exists where suggestions appear (screenshot).

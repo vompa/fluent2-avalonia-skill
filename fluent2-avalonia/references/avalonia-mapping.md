@@ -1,6 +1,6 @@
 # Avalonia mapping: how Fluent concepts become AXAML, styles, behaviors and tests
 
-Read this file when you turn a Fluent rule from the other reference files into Avalonia code: choosing selectors for states, wiring tokens, writing transitions, adding keyboard behavior, exposing automation, restoring focus, and testing with headless input. Fluent itself says little about Avalonia; everything here is practical guidance, so treat it as **Derived**. Examples target Avalonia 12; section 11 lists the Avalonia 11 names. Property, event and template-part names change between versions and themes, so confirm each one against the control theme and the version your project uses before copying it. Where a statement is an observed behavior rather than documented, it says **observed** and names the version; every observed item here comes from one Avalonia 12.1.4 desktop project on Windows and was not re-checked on Avalonia 11.
+Read this file when you turn a Fluent rule from the other reference files into Avalonia code: choosing selectors for states, wiring tokens, writing transitions, adding keyboard behavior, exposing automation, restoring focus, and testing with headless input. Fluent itself says little about Avalonia; everything here is practical guidance, so treat it as **Derived**. Examples target Avalonia 12; [avalonia-12-notes.md](avalonia-12-notes.md) lists the Avalonia 11 names, changed behavior and observed pitfalls. Property, event and template-part names change between versions and themes, so confirm each one against the control theme and the version your project uses before copying it. Where a statement is an observed behavior rather than documented, it says **observed** and names the version; every observed item here comes from one Avalonia 12.1.4 desktop project on Windows and was not re-checked on Avalonia 11.
 
 ## Contents
 
@@ -17,13 +17,17 @@ Read this file when you turn a Fluent rule from the other reference files into A
 8. [Keyboard, focus and navigation](#8-keyboard-focus-and-navigation)
    - [Roving tab stop](#roving-tab-stop)
    - [Toolbar overflow panel](#toolbar-overflow-panel)
+   - [F6 regions](#f6-regions)
+   - [Tab order walk](#tab-order-walk)
 9. [Automation](#9-automation)
+   - [Finding and fixing accessible names](#finding-and-fixing-accessible-names)
 10. [Headless tests](#10-headless-tests)
+    - [Reading transitions](#reading-transitions)
     - [What headless does not show](#what-headless-does-not-show)
-11. [Avalonia 11 to 12 names](#11-avalonia-11-to-12-names)
-12. [Observed pitfalls](#12-observed-pitfalls)
-13. [Checklist](#13-checklist)
-14. [Sources](#14-sources)
+11. [Checklist](#11-checklist)
+12. [Sources](#12-sources)
+
+Avalonia 11 to 12 names, changed behavior and a list of observed pitfalls live in [avalonia-12-notes.md](avalonia-12-notes.md).
 
 ## 1. Start from what the project already has
 
@@ -35,7 +39,20 @@ Read this file when you turn a Fluent rule from the other reference files into A
 
 - Put every color, radius, thickness, height and duration in a resource dictionary with semantic names (for example `SurfaceBrush`, `FieldBorderBrush`, `AccentBrush`, `ControlHeight`, `ControlRadius`). Per-theme values go into `ThemeDictionaries` under the keys `Light` and `Dark`.
 - Reference theme-dependent values with `DynamicResource`. `StaticResource` binds once and does not follow a theme switch. Because a runtime switch between light, dark and a future high-contrast variant must repaint everything.
-- No hex literals in view XAML. Search for them in CI (`grep -rn "#[0-9A-Fa-f]\{6\}" --include=*.axaml` in view folders, excluding the token file).
+- No color literals in view XAML: no hex, no named colors (`White`, `Black`), no colors inside shadow strings. A scan for `#` alone misses the last two (observed, Avalonia 12.1.4). Run all three in CI over the view folders, excluding the token file, and add the code-behind check:
+
+```bash
+# hex colors (3 to 8 digits, with alpha), also inside BoxShadow strings
+grep -rnE "#[0-9A-Fa-f]{3,8}\b" --include=*.axaml Views/
+# named colors in color-bearing attributes (extend the list with the names your code base uses)
+grep -rnE "(Background|Foreground|Fill|Stroke|BorderBrush|Color)=\"(White|Black|Red|Green|Blue|Gray|Grey|Yellow|Orange)\"" --include=*.axaml Views/
+# shadows written inline instead of through a resource
+grep -rnE "BoxShadow=\"[^{]" --include=*.axaml Views/
+# colors built in code
+grep -rnE "Brushes\.|Colors\.|Color\.Parse|Color\.FromRgb" --include=*.cs Views/
+```
+
+  Adjust the folder names; allow `Transparent` where it is meant. Because every literal that gets through is a color that high contrast and the dark theme cannot repaint.
 
 ```xml
 <ResourceDictionary xmlns="https://github.com/avaloniaui">
@@ -55,6 +72,22 @@ Read this file when you turn a Fluent rule from the other reference files into A
 ```
 
 The values are placeholders; use the project's tokens. A third theme variant for high contrast can be declared as a custom `ThemeVariant` (check the API in your version); whether Avalonia maps OS contrast colors automatically is (derived, not verified).
+
+Shadows are colors too. Declare them as `BoxShadows` resources per theme (a dark theme needs a stronger shadow alpha than a light one) and reference them with `DynamicResource` (observed, Avalonia 12.1.4):
+
+```xml
+<ResourceDictionary.ThemeDictionaries>
+  <ResourceDictionary x:Key="Light">
+    <BoxShadows x:Key="PopupShadow">0 8 16 0 #29000000</BoxShadows>
+  </ResourceDictionary>
+  <ResourceDictionary x:Key="Dark">
+    <BoxShadows x:Key="PopupShadow">0 8 16 0 #52000000</BoxShadows>
+  </ResourceDictionary>
+</ResourceDictionary.ThemeDictionaries>
+<!-- in a view: <Border BoxShadow="{DynamicResource PopupShadow}"/> -->
+```
+
+The values are placeholders; use the project's shadow tokens (`foundations.md`, section 7).
 
 ## 3. States as selectors
 
@@ -141,7 +174,7 @@ public void Probe_text_box_template()
 }
 ```
 
-- Insert the missing parts (bottom edge, focus underline) from an attached property or a control subclass in `TemplateApplied` (`e.NameScope.Find<Panel>("<name from the probe>")`, then `Children.Add(...)`). Put the look and the motion in style classes (`Border.focus-underline` with its `Transitions`), and switch a state class such as `active` from code on focus changes. Because a reduced-motion override can then reach the transitions by class (`foundations.md`, section 8), and a selector that crosses into code-inserted elements through `/template/` is not guaranteed (derived, not verified).
+- Insert the missing parts (bottom edge, focus underline) from an attached property or a control subclass in `TemplateApplied` (`e.NameScope.Find<Panel>("<name from the probe>")`, then `Children.Add(...)`). Put the look and the motion in style classes (`Border.focus-underline` with its `Transitions`), and switch a state class such as `active` from code on focus changes. Because the motion then lives in styles, where the reduced-motion override (section 5) reaches it, and a selector that crosses into code-inserted elements through `/template/` is not guaranteed (derived, not verified).
 
 Template parts you will meet in the Avalonia 12 Fluent templates (observed, Avalonia 12.1.4; which control carries which part is derived, not verified, so confirm with the probe):
 
@@ -201,9 +234,27 @@ Durations from `foundations.md`: hover and color 100 ms, enter 200 ms, exit 50 t
 Reduced motion:
 
 - Provide one app-level switch (OS preference where your platform API exposes it, otherwise a setting) and make it zero every transition, including press scales, fades and the input underline.
-- A practical route: add a class such as `no-motion` on the root window and a style that clears `Transitions` for the controls and their template parts (`/template/` selectors), or build transitions from a few shared style classes that the switch removes. Verify with the test below instead of trusting the selectors.
-- Keep the override styles available apart from the OS query, for example as a static `Overrides()` method that the OS hook and the test both apply (pattern in `foundations.md`, section 8). A test that can only run when the OS setting is on will never run.
-- Test: with the switch on, walk the visual tree and assert that no element has a non-empty `Transitions` collection with a non-zero duration (section 10).
+- A class on the root window plus a style that only selects the control type and clears `Transitions` does not work in general (observed, Avalonia 12.1.4). A setter under a class or pseudo-class (`.toast`, `:pressed`) ranks above a style that selects only the type, so the override loses exactly where the app's own motion is set (section 3, Precedence). Because the override has to outrank every style that sets `Transitions`. The pattern that worked has three parts:
+  1. An activator style: the selector carries a class condition that never matches anything, which lifts the style to the rank of class rules and still hits every control.
+
+```csharp
+public static class ReducedMotion
+{
+    // Applied by the OS hook and by the test alike; works without the OS setting.
+    public static Styles Overrides() => new()
+    {
+        new Style(x => x.Is<Control>().Not(y => y.Class("never-set")))
+        {
+            Setters = { new Setter(Animatable.TransitionsProperty, new Transitions()) },
+        },
+    };
+}
+// OS hook or setting: Application.Current!.Styles.Add(ReducedMotion.Overrides());
+```
+
+  2. Attach the overrides to the `Application` before the first window exists (for example in `OnFrameworkInitializationCompleted`, before the main window is created). Styles added to a window that is already open left a 75 ms transition of the Fluent template in place (observed).
+  3. In the test, ignore template parts that are not visible. Avalonia sets a transition on a part of the `ToggleSwitch` template in code, and no style reaches it; the part is not drawn, so it does not matter to the user.
+- Test: apply `ReducedMotion.Overrides()` to the application, open every page, and assert that no visible element has a transition with a duration above zero. `ITransition` does not expose its duration, so read it as shown in [Reading transitions](#reading-transitions) (section 10). A test that can only run when the OS setting is on will never run; this is why the override is a plain method.
 
 ## 6. Behaviors as attached properties
 
@@ -214,10 +265,12 @@ Avalonia 12 already selects everything when Tab moves into a single-line `TextBo
 ```csharp
 public enum TabFocusMode { Default, CaretAtEnd, SelectAll }
 
-public static class TabFocus
+// The owner of an attached property must not be a static class in Avalonia 12 (observed;
+// avalonia-12-notes.md, section 2). If an analyzer asks for "static", suppress it for this type.
+public abstract class TabFocus
 {
     public static readonly AttachedProperty<TabFocusMode> ModeProperty =
-        AvaloniaProperty.RegisterAttached<TextBox, TabFocusMode>("Mode", typeof(TabFocus));
+        AvaloniaProperty.RegisterAttached<TabFocus, TextBox, TabFocusMode>("Mode");
 
     public static void SetMode(TextBox box, TabFocusMode value) => box.SetValue(ModeProperty, value);
     public static TabFocusMode GetMode(TextBox box) => box.GetValue(ModeProperty);
@@ -231,7 +284,7 @@ public static class TabFocus
         if (e.NewValue is TabFocusMode.CaretAtEnd or TabFocusMode.SelectAll) box.GotFocus += OnGotFocus;
     }
 
-    // FocusChangedEventArgs is the Avalonia 12 type (section 11 has the older name)
+    // FocusChangedEventArgs is the Avalonia 12 type (avalonia-12-notes.md, section 1, has the older name)
     private static void OnGotFocus(object? sender, FocusChangedEventArgs e)
     {
         if (sender is not TextBox box || e.NavigationMethod != NavigationMethod.Tab) return;
@@ -284,8 +337,9 @@ Money uses `decimal`; the display and parse paths take a `CultureInfo`; no `doub
 ## 8. Keyboard, focus and navigation
 
 - Group as one tab stop: `KeyboardNavigation.TabNavigation="Once"` on the group container with arrow handling inside (radio groups, button strips). `Cycle` wraps inside popups such as menus; `Continue` is the default. When the one tab stop must be the selected item (tab strip, radio group), use the recipe under [Roving tab stop](#roving-tab-stop).
-- Region switching with F6: keep an ordered list of region roots, intercept `KeyDown` for F6 and Shift+F6 on the window, move focus to the first focusable descendant of the next region. Give each root `AutomationProperties.Name`.
-- Restoring focus after a transient surface closes: store the invoker before opening, then call `invoker.Focus()` after close (`Dispatcher.UIThread.Post` when closing from inside a handler). When the focused element hides itself, no element owns focus and keys never reach your view (observed); listen with `AddHandler(InputElement.KeyDownEvent, handler, RoutingStrategies.Tunnel)` on the window, and if `TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement()` is null, restore focus and handle the key. (`TopLevel.GetTopLevel` is the Avalonia 12 way to reach the root; section 11 has the older name.)
+- Region switching with F6: mark regions with a named attached property, order them as they appear on screen, intercept `KeyDown` for F6 and Shift+F6 on the window and move focus to each region's focus target; recipe under [F6 regions](#f6-regions).
+- Tab order is source order: see [Tab order walk](#tab-order-walk) for the `DockPanel` trap and a test that prints the real order.
+- Restoring focus after a transient surface closes: store the invoker before opening, then call `invoker.Focus()` after close (`Dispatcher.UIThread.Post` when closing from inside a handler). When the focused element hides itself, no element owns focus and keys never reach your view (observed); listen with `AddHandler(InputElement.KeyDownEvent, handler, RoutingStrategies.Tunnel)` on the window, and if `TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement()` is null, restore focus and handle the key. (`TopLevel.GetTopLevel` is the Avalonia 12 way to reach the root; [avalonia-12-notes.md](avalonia-12-notes.md), section 1, has the older name.)
 - Menus and flyouts: when a click handler closes a flyout, its items can lose their `DataContext`, so command parameters arrive empty (observed). Run the command first and close the flyout afterwards with `Dispatcher.UIThread.Post`.
 - Esc and parent views with tunnel handlers: when a parent view handles keys in the tunnel phase (to close a panel on Esc, to move a selection with arrows), its handler runs before the focused field, so the field never gets its own Esc (restore the value) and the panel closes with the edit lost (observed, Avalonia 12.1.4). Pattern: the field publishes an attached property such as `HasPendingChange` (true while the text differs from the last committed value or while a popup is open), and the parent handler asks the focused element before it acts:
 
@@ -319,10 +373,10 @@ A tab strip or radio group is one tab stop: Tab lands on the selected item, the 
 ```
 
 ```csharp
-public static class RovingFocus
+public abstract class RovingFocus   // not static: the owner of an attached property cannot be (avalonia-12-notes.md, section 2)
 {
     public static readonly AttachedProperty<bool> IsEnabledProperty =
-        AvaloniaProperty.RegisterAttached<Panel, bool>("IsEnabled", typeof(RovingFocus));
+        AvaloniaProperty.RegisterAttached<RovingFocus, Panel, bool>("IsEnabled");
 
     public static void SetIsEnabled(Panel panel, bool value) => panel.SetValue(IsEnabledProperty, value);
     public static bool GetIsEnabled(Panel panel) => panel.GetValue(IsEnabledProperty);
@@ -421,6 +475,99 @@ public sealed class OverflowPanel : Panel
 
 A hidden child needs all three: `IsEnabled` false, `Opacity` 0 and a 0 x 0 arrange. With less, the invisible items stay in the tab order and clog it (observed, Avalonia 12.1.4). Changing `IsVisible` from inside measure would invalidate the layout again (derived, not verified), which is why the sketch uses a class. When `HiddenItemsChanged` fires, rebuild the menu entries from `HiddenItems` with their text labels (icon-only items need a text in the menu) and commands. Tests: at the minimum window width and at a wide width, press Tab through the toolbar and compare the focus sequence with the visible items plus the "More" button; open the menu and check that every hidden command is in it.
 
+### F6 regions
+
+Windows gives custom shells no F6 handling, so build it (`accessibility.md`, section 4, has the rules). Recipe from an Avalonia 12.1.4 project (observed): an attached property names a region, one handler on the window cycles the regions, and each region may name its own focus target.
+
+```csharp
+public abstract class Region   // not static: attached-property owner (avalonia-12-notes.md, section 2)
+{
+    public static readonly AttachedProperty<string?> NameProperty =
+        AvaloniaProperty.RegisterAttached<Region, Control, string?>("Name");
+    public static readonly AttachedProperty<Control?> FocusTargetProperty =
+        AvaloniaProperty.RegisterAttached<Region, Control, Control?>("FocusTarget");
+
+    public static void SetName(Control c, string? value) => c.SetValue(NameProperty, value);
+    public static string? GetName(Control c) => c.GetValue(NameProperty);
+    public static void SetFocusTarget(Control c, Control? value) => c.SetValue(FocusTargetProperty, value);
+    public static Control? GetFocusTarget(Control c) => c.GetValue(FocusTargetProperty);
+
+    // The region name is also the automation name, so a screen reader announces where focus lands.
+    static Region() => NameProperty.Changed.AddClassHandler<Control>(
+        (c, e) => AutomationProperties.SetName(c, e.NewValue as string));
+
+    // Call from a tunnel KeyDown handler on the window; pageRoot is the current page or the window content.
+    public static void HandleF6(Control pageRoot, KeyEventArgs e)
+    {
+        if (e.Key != Key.F6) return;
+
+        // Screen order (top to bottom, then left to right), not tree order: the two differ with docked children.
+        var regions = pageRoot.GetSelfAndVisualDescendants().OfType<Control>()
+            .Where(c => GetName(c) is not null && c.IsEffectivelyVisible)
+            .OrderBy(c => c.TranslatePoint(default, pageRoot)?.Y ?? 0)
+            .ThenBy(c => c.TranslatePoint(default, pageRoot)?.X ?? 0)
+            .ToList();
+        if (regions.Count == 0) regions.Add(pageRoot);   // fallback: the whole page is one region
+
+        var focused = TopLevel.GetTopLevel(pageRoot)?.FocusManager?.GetFocusedElement() as Visual;
+        var current = regions.FindIndex(r => focused is not null && (r == focused || r.IsVisualAncestorOf(focused)));
+        var step = e.KeyModifiers.HasFlag(KeyModifiers.Shift) ? -1 : 1;
+        var from = current >= 0 ? current : (step > 0 ? -1 : 0);
+        var next = regions[(from + step + regions.Count) % regions.Count];
+
+        // Explicit target first (the view itself when it handles keys), else the first focusable descendant.
+        var target = GetFocusTarget(next)
+            ?? next.GetVisualDescendants().OfType<InputElement>()
+                   .FirstOrDefault(i => i.Focusable && i.IsEffectivelyEnabled && i.IsEffectivelyVisible)
+            ?? next;
+        target.Focus(NavigationMethod.Tab);
+        e.Handled = true;
+    }
+}
+```
+
+Rules in the code, each for a reason:
+
+- Order by screen position, because tree order follows the XAML and a bottom-docked bar written first would otherwise be the first region.
+- Fallback to the whole page, so F6 still moves focus into a page that declares no regions instead of doing nothing.
+- An explicit focus target per region. A view that handles keys itself (a calendar, a canvas, a list with custom arrows) sets itself as the target and is `Focusable`, because focus on its first button would send arrows to the wrong handler.
+- Hook it once per window: `window.AddHandler(InputElement.KeyDownEvent, (_, e) => Region.HandleF6(CurrentPage, e), RoutingStrategies.Tunnel)`, and check that no global key binding already uses F6.
+
+Test with real keys: press F6 repeatedly and compare the names of the regions that hold focus with the expected order, including wrap-around; press Shift+F6 and compare the reverse.
+
+```csharp
+window.KeyPressQwerty(PhysicalKey.F6, RawInputModifiers.None);
+var focused = window.FocusManager!.GetFocusedElement() as Visual;
+var region = focused!.GetSelfAndVisualAncestors().OfType<Control>().First(c => Region.GetName(c) is not null);
+Assert.Equal("Navigation", Region.GetName(region));
+// Shift+F6: window.KeyPressQwerty(PhysicalKey.F6, RawInputModifiers.Shift);
+```
+
+### Tab order walk
+
+Tab follows source (tree) order, not the layout you see (observed, Avalonia 12.1.4). Seen case: a `DockPanel` child docked at the bottom that was written before the content in the source got focus first; `KeyboardNavigation.TabIndex` changed nothing. The fix that worked: a `Grid` with rows, so source order equals reading order. Derived rule: write the children in reading order and avoid docking as a layout trick for anything that takes focus.
+
+To get the numbered focus list the pull request needs (`accessibility.md`, section 3), let a headless test print it: press Tab, read the automation name of the focused element, and stop when an element repeats.
+
+```csharp
+static List<string> TabOrder(Window window, int max = 80)
+{
+    var seen = new List<Control>();
+    var names = new List<string>();
+    for (var i = 0; i < max; i++)
+    {
+        window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
+        if (window.FocusManager?.GetFocusedElement() is not Control focused || seen.Contains(focused)) break;   // wrapped around
+        seen.Add(focused);
+        names.Add(ControlAutomationPeer.CreatePeerForElement(focused).GetName());
+    }
+    return names;
+}
+// Assert.Equal(new[] { "Search", "Filter", "Add", "Row 1" }, TabOrder(window));
+```
+
+Use the peer name (not the control type) so the list is what a screen-reader user hears and a missing name shows up at once (section 9, Finding and fixing accessible names). A group that is a roving tab stop appears once. Run it per screen and per layout state (side panel open and closed).
+
 ## 9. Automation
 
 | Need | Property |
@@ -433,6 +580,8 @@ A hidden child needs all three: `IsEnabled` false, `Opacity` 0 and a 0 x 0 arran
 | Access key | `AutomationProperties.AccessKey` |
 | Live region for message bars | `AutomationProperties.LiveSetting` (`Assertive` for errors and warnings, `Polite` otherwise) |
 | Hide decorative elements | `AutomationProperties.AccessibilityView="Raw"` (check the value name in your version) |
+
+Avalonia derives accessible names from content, and the result is often wrong without any sign in the source or in a screenshot (observed, Avalonia 12.1.4; rules in `accessibility.md`, section 7). `IsRequiredForForm` is read from the attached property, not from the peer: use `AutomationProperties.GetIsRequiredForForm(field)` in tests.
 
 For custom controls override `OnCreateAutomationPeer` and return a peer that reports the right role and, for range controls, the range-value pattern (minimum, maximum, value). A `TextBox` peer already implements `IValueProvider`, whose `Value` is the text and clashes by name with `IRangeValueProvider.Value`, which is a number. Derive from `TextBoxAutomationPeer` and implement the range interface explicitly, so both patterns stay available (Derived; let the compiler list the members of the interface in your version):
 
@@ -458,6 +607,73 @@ protected override AutomationPeer OnCreateAutomationPeer() => new NumberFieldAut
 ```
 
 The conversion to `double` is for the automation surface only; the money path stays `decimal`. Keep the step buttons of a number field out of the tab order (`Focusable="False"` or `IsTabStop="False"`) and name them "Increase" and "Decrease". Fluent and WinUI sources for the rules: see `accessibility.md`.
+
+### Finding and fixing accessible names
+
+Scan every page for elements whose name is empty or looks like a type name, with the same peer a screen reader reads (`using Avalonia.Automation.Peers;`). Run it for all pages in one test and fail with the whole list, so one run shows every problem.
+
+```csharp
+static IEnumerable<string> NameProblems(Visual page) =>
+    page.GetSelfAndVisualDescendants().OfType<Control>()
+        .Where(c => c.IsEffectivelyVisible && c.Focusable)
+        .Select(c => (Control: c, Name: ControlAutomationPeer.CreatePeerForElement(c).GetName()))
+        .Where(x => string.IsNullOrWhiteSpace(x.Name) || LooksLikeTypeName(x.Name, x.Control))
+        .Select(x => $"{x.Control.GetType().Name} '{x.Control.Name}' has name '{x.Name}'");
+
+static bool LooksLikeTypeName(string name, Control control) =>
+    name == control.GetType().FullName                       // "Avalonia.Controls.StackPanel" on a button with non-text content
+    || name == control.DataContext?.GetType().ToString()     // list rows without a name show the model type
+    || (name.Contains('.') && !name.Contains(' '));          // heuristic for other qualified names
+
+// [Fact] per page:  Assert.True(!NameProblems(window).Any(), string.Join(Environment.NewLine, NameProblems(window)));
+```
+
+Template parts of composite controls can add noise; fix real findings first and keep an explicit, reviewed ignore list for the rest. Fixes that worked:
+
+1. Name from the first text of the content, for buttons whose content is a panel with an icon and a label. An attached property that sets the name once the content exists; an explicit `AutomationProperties.Name` always wins (derived, not verified beyond the observed case):
+
+```csharp
+public abstract class AccessibleName   // not static: attached-property owner (avalonia-12-notes.md, section 2)
+{
+    public static readonly AttachedProperty<bool> FromContentProperty =
+        AvaloniaProperty.RegisterAttached<AccessibleName, Control, bool>("FromContent");
+    public static void SetFromContent(Control c, bool value) => c.SetValue(FromContentProperty, value);
+    public static bool GetFromContent(Control c) => c.GetValue(FromContentProperty);
+
+    static AccessibleName() => FromContentProperty.Changed.AddClassHandler<Control>((control, e) =>
+    {
+        control.AttachedToVisualTree -= OnAttached;
+        if (e.NewValue is true) control.AttachedToVisualTree += OnAttached;
+    });
+
+    private static void OnAttached(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        if (sender is not Control control || !string.IsNullOrEmpty(AutomationProperties.GetName(control))) return;
+        Dispatcher.UIThread.Post(() =>   // after the content is realized
+        {
+            var text = control.GetVisualDescendants().OfType<TextBlock>()
+                .Select(t => t.Text).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t));
+            if (text is not null) AutomationProperties.SetName(control, text);
+        });
+    }
+}
+```
+
+2. List rows: a style setter on the row container takes the name from the row's ViewModel. The compiled binding in a setter needs `x:DataType` on the `Style` (`avalonia-12-notes.md`, section 2):
+
+```xml
+<Style Selector="ListBox.messages ListBoxItem" x:DataType="vm:MessageRow">
+  <Setter Property="AutomationProperties.Name" Value="{Binding Subject}"/>
+</Style>
+```
+
+3. Help and icon-only buttons: name the topic ("Help on delivery date"), not only "Help", because a screen reader's element list shows ten identical "Help" entries. Use the same text as the tooltip, from one localizable resource:
+
+```xml
+<Button Classes="help" AutomationProperties.Name="{Binding HelpName}" ToolTip.Tip="{Binding HelpName}"/>
+```
+
+4. Unlabeled fields: `AutomationProperties.LabeledBy` pointing at the visible label, or a `Name` where no label exists.
 
 ## 10. Headless tests
 
@@ -518,13 +734,15 @@ Patterns worth having:
 
 | Pattern | What it asserts |
 | --- | --- |
-| Tab-order walk | Press Tab repeatedly and compare the sequence of focused element names with the numbered focus list. |
+| Tab-order walk | Press Tab repeatedly and compare the sequence of focused element names with the numbered focus list (helper in section 8, Tab order walk). |
+| F6 regions | Press F6 and Shift+F6 repeatedly; assert the region names in order, the wrap-around and the fallback page (section 8, F6 regions). |
+| Name scan | Open every page; assert that no focusable element has an empty or type-like automation name (section 9, Finding and fixing accessible names). |
 | Esc ladder | Edit a field, press Esc, field shows the old value; Esc again raises the close command. |
 | Enter and default button | Enter in a single-line field invokes the default command; not in a multi-line field. |
 | Parser table | `[Theory]` with the rows of the parser tables, plus invalid and empty input. |
 | Error replaces help | Setting an error hides the help text and shows the message with its icon. |
 | Focus restore | Open a popup or dialog from a button, close it, assert the button has focus; close a panel with a mouse click, press an arrow key, assert the view handled it. |
-| Reduced motion | Switch on, walk the visual tree, assert no non-zero transition (use a helper that reads `Transitions`). |
+| Reduced motion | Switch on, open every page, assert that no visible element has a non-zero transition (helper in Reading transitions below; override pattern in section 5). |
 | Contrast | Resolve brushes from both theme variants (`Application.Current.RequestedThemeVariant`), compute WCAG ratios, assert 4.5 and 3.0 thresholds per state. |
 | Screenshots | `window.CaptureRenderedFrame()` after a short wait for animations (at least 200 ms for fades; advance the render timer or delay), once per state per theme. |
 
@@ -547,60 +765,62 @@ Saving many PNG frames in one run can crash the test host with an access violati
 
 Run only one test process per working copy at a time and stop local servers first: suites that start databases, simulators or other apps in parallel can turn headless runs red at random (observed).
 
+### Reading transitions
+
+`ITransition` exposes neither the duration nor the animated property in Avalonia 12 (observed, Avalonia 12.1.4), so a test cannot read them through the interface. Read them from the concrete type, by reflection (works for every transition class) or typed where the app uses only a few classes:
+
+```csharp
+static IEnumerable<(string Property, TimeSpan Duration)> ReadTransitions(Animatable element)
+{
+    foreach (var transition in element.Transitions ?? new Transitions())
+    {
+        var type = transition.GetType();
+        var duration = type.GetProperty("Duration")?.GetValue(transition) as TimeSpan? ?? TimeSpan.Zero;
+        var property = type.GetProperty("Property")?.GetValue(transition) as AvaloniaProperty;
+        yield return (property?.Name ?? type.Name, duration);
+    }
+}
+// Typed alternative (derived, not verified): if (transition is Transition<double> t) use t.Duration and t.Property.
+
+static IEnumerable<string> MotionLeaks(Visual root) =>
+    root.GetSelfAndVisualDescendants().OfType<Animatable>()
+        .Where(e => e is not Visual v || v.IsEffectivelyVisible)   // invisible template parts are not motion the user sees
+        .SelectMany(e => ReadTransitions(e).Where(t => t.Duration > TimeSpan.Zero)
+            .Select(t => $"{e.GetType().Name}: {t.Property} {t.Duration.TotalMilliseconds} ms"));
+
+// per page, with ReducedMotion.Overrides() applied to the Application:  Assert.Empty(MotionLeaks(window));
+```
+
+The reflection read is also a quick way to check the other direction: with the switch off, the same walk should find the token durations (100 ms, 200 ms) and not zero.
+
 ### What headless does not show
 
 - Tooltips: in a headless test a tooltip appears in the window's overlay layer instead of a popup window (observed, Avalonia 12.1.4). You can assert that it opens, its content, the delay and its placement relative to the target; shadow, border and behavior at a screen edge cannot be verified. Look at those in the running app and say so in the report. Other popups (menus, flyouts, combo lists) may behave the same way (derived, not verified).
 - A `MinWidth` on the window clamps the width a test asks for (observed): a responsive test at 600 px inside a window with `MinWidth` 800 measures 800 px. Lift the minimum inside the test (`window.MinWidth = 0`) or measure the content directly (`content.Measure(new Size(600, 800))`).
 
-## 11. Avalonia 11 to 12 names
+## 11. Checklist
 
-Avalonia 12 renames several APIs and template parts that this skill's patterns use. Observed in Avalonia 12.1.4; the right-hand column is the name to use there, the left-hand column is what Avalonia 11 code and older examples contain. Docs: [Avalonia documentation][avalonia-docs].
-
-| Avalonia 11 | Avalonia 12 | Where it shows up |
-| --- | --- | --- |
-| `GotFocusEventArgs` | `FocusChangedEventArgs` | Handlers for `GotFocus`, `LostFocus`; section 6 |
-| `OnGotFocus(GotFocusEventArgs)`, `OnLostFocus(RoutedEventArgs)` overrides | `OnGotFocus(FocusChangedEventArgs)`, `OnLostFocus(FocusChangedEventArgs)` | Custom field controls |
-| `Visual.GetVisualRoot()` | `TopLevel.GetTopLevel(visual)` | Focus manager access; section 8 |
-| `Watermark` (and its foreground) | `PlaceholderText` with `PlaceholderForeground` | Placeholder styling and tests |
-| Watermark-named template parts | `PART_Placeholder`, `PART_FloatingPlaceholder` | Styles that reach into the TextBox template; section 4 |
-
-How to find the right name in your version instead of guessing: build and read the compiler error (it names the missing member or type), or list the members by reflection (`typeof(TextBox).GetProperties()`, `typeof(TextBox).Assembly.GetTypes()` filtered by name), or run the template probe from section 4.
-
-## 12. Observed pitfalls
-
-- Local values beat style setters and classes; set state colors only in styles.
-- Template-set values beat styles too (placeholder `Opacity`, `HighlightBackground`, `PopupBorder`); see section 3. Probe, then set a local value in `TemplateApplied` or override the theme resource.
-- A hover selector that reuses the rest brush hides hover.
-- `FontFamily="Name, Fallback"` only finds installed fonts; an embedded font needs its resource family name (for example `fonts:Inter#Inter` in one project's setup); check how your theme registers it.
-- Headless image tests with enter or exit animations need at least 200 ms before the frame capture, otherwise the image shows a half fade.
-- Stub-based UI tests that match a request by path plus query break when you add a query parameter; update every stub that wires that route.
-- Pseudo-class rules beat base rules; a base style on a template part can lose against the theme's `:unchecked` or `:pointerover` rule. Write the state selector (section 3, Precedence).
-- `MenuItem` radius is a `TemplateBinding` to `MenuItem.CornerRadius`; set it on the `MenuItem`, not on the template border (section 3).
-- `OverrideDefaultValue` on `ToolTip.ShowDelay` or `ToolTip.Placement` throws "Metadata already set"; use the `ToolTip.TipProperty.Changed` pattern (section 6).
-- A custom `ToggleSwitch` template without `PART_SwitchKnob` and `PART_MovingKnobs` fails with AVLN2205 (section 4).
-- Overflowed toolbar items that are only transparent still take Tab stops; disable them and arrange them at 0 x 0 (section 8).
-- A window `MinWidth` clamps headless test widths (section 10).
-
-## 13. Checklist
-
-- [ ] No hex colors or magic numbers in view XAML; all values come from resources (grep).
+- [ ] No hex colors, named colors, inline `BoxShadow` values or magic numbers in view XAML; all values come from resources (the scans in section 2); shadows are `BoxShadows` resources per theme.
 - [ ] Theme-dependent resources use `DynamicResource` (grep for `StaticResource` on brushes).
 - [ ] State styling uses selectors from section 3, with no local brush values on elements (grep for `Background="` in views).
 - [ ] The field template has the bottom edge and focus underline (screenshot of rest and focus, both themes).
-- [ ] Transitions use the token durations and curves; reduced-motion test passes.
+- [ ] Transitions use the token durations and curves; the reduced-motion override is an activator style on the `Application` and the test finds no visible non-zero transition on any page (section 5).
 - [ ] Behaviors are attached properties or control subclasses with headless tests.
 - [ ] Every style that targets a template part was checked with a probe test; values the template sets itself are overridden in `TemplateApplied` or through the theme resource (section 3).
 - [ ] A property that does not change was traced to its source (template, pseudo-class rule, local value) and changed there (section 3, Precedence).
 - [ ] A custom template contains the required parts of its control (section 4, Required template parts; the compiler or a probe test confirms it).
-- [ ] Names that changed between Avalonia 11 and 12 match the project's version (section 11).
+- [ ] Names and behavior that changed between Avalonia 11 and 12 match the project's version, and no attached-property owner is a static class ([avalonia-12-notes.md](avalonia-12-notes.md)).
 - [ ] Parsers are pure classes with table tests; no `double` in the money path.
-- [ ] Groups are one tab stop and the stop is the selected item; arrows do not wrap; F6 cycles named regions (headless test; section 8).
+- [ ] Groups are one tab stop and the stop is the selected item; arrows do not wrap (headless test; section 8).
+- [ ] F6 and Shift+F6 cycle regions in screen order, each with a name and a focus target; a page without regions is one region (test; section 8, F6 regions).
+- [ ] The Tab walk of each screen matches the numbered focus list, and nothing docked out of source order takes focus first (test; section 8, Tab order walk).
 - [ ] An overflow panel hides items completely (disabled, transparent, 0 x 0) and Tab visits only visible items (headless test at minimum and wide width).
 - [ ] Tooltip delay and placement come from one app-wide default, not from `OverrideDefaultValue` (section 6).
 - [ ] Automation names, help, required and live-region settings present on custom controls (test or inspector).
+- [ ] The name scan finds no empty or type-like names on any page; list rows, icon buttons and help buttons have names that identify their target (section 9).
 - [ ] Every selector and property used in this file was checked against the project's Avalonia version.
 
-## 14. Sources
+## 12. Sources
 
 Avalonia documentation and source are the authority for selectors, properties and the headless API: [Avalonia documentation][avalonia-docs] and [Avalonia source][avalonia-src]. The Fluent and WinUI rules these patterns implement are cited in the other reference files.
 
