@@ -24,20 +24,37 @@ The skill never replaces your own design brief. If a project has a brief or toke
 
 ## Install
 
-Copy the folder `fluent2-avalonia/` into one of these places:
+**With the `skills` CLI** (works for Claude Code and other agents, same as most public skills):
 
-- `.claude/skills/` inside your project (shared with the team through the repository), or
-- `~/.claude/skills/` (available in all your projects).
+```bash
+npx skills add vompa/fluent2-avalonia-skill --skill fluent2-avalonia
+```
+
+Add `-g` to install it for all your projects instead of the current one.
+
+**As a Claude Code plugin** (this repository is also a plugin marketplace):
+
+```bash
+claude plugin marketplace add vompa/fluent2-avalonia-skill
+claude plugin install fluent2-avalonia@vompa-skills
+```
+
+Inside a session, `/plugin marketplace add vompa/fluent2-avalonia-skill` and `/plugin install fluent2-avalonia@vompa-skills` do the same. The skill then runs as `/fluent2-avalonia:fluent2-avalonia` and triggers on its own when a task matches its description.
+
+**By hand:** copy the folder `fluent2-avalonia/` into `.claude/skills/` inside your project (shared with the team through the repository) or into `~/.claude/skills/` (available in all your projects).
 
 ```bash
 cp -r fluent2-avalonia ~/.claude/skills/
 ```
 
-For Claude.ai, zip the folder as a `.skill` package (the archive root contains the `fluent2-avalonia/` folder) and upload it in the skills settings. Packaging details follow Anthropic's skill documentation.
+**For Claude.ai**, zip the folder as a `.skill` package (the archive root contains the `fluent2-avalonia/` folder) and upload it in the skills settings. Packaging details follow Anthropic's skill documentation.
 
 ## Structure
 
 ```text
+.claude-plugin/
+  plugin.json                 Claude Code plugin manifest (points at fluent2-avalonia/)
+  marketplace.json            marketplace entry so the repository can be added with one command
 fluent2-avalonia/
   SKILL.md                    entry point: when it applies, how to work, rules at a glance
   references/
@@ -81,6 +98,6 @@ MIT, see [LICENSE](LICENSE).
 
 Dieser Skill bringt Claude bei, Avalonia-Desktopoberflächen nach dem Designsystem Fluent 2 von Microsoft zu bauen und zu prüfen: Verhalten von Komponenten, Zustände, Tastaturbedienung, Barrierefreiheit, Texte, Bewegung und verantwortungsvolle KI-Muster, jeweils mit prüfbaren Checklisten und Mustern für Headless-Tests.
 
-Installation: den Ordner `fluent2-avalonia/` nach `.claude/skills/` im Projekt oder nach `~/.claude/skills/` kopieren. Prüfung: `python scripts/validate.py`.
+Installation: `npx skills add vompa/fluent2-avalonia-skill --skill fluent2-avalonia`, oder als Claude-Code-Plugin mit `claude plugin marketplace add vompa/fluent2-avalonia-skill` und `claude plugin install fluent2-avalonia@vompa-skills`, oder den Ordner `fluent2-avalonia/` von Hand nach `.claude/skills/` im Projekt beziehungsweise `~/.claude/skills/` kopieren. Prüfung: `python scripts/validate.py`.
 
 Hat ein Projekt einen eigenen Design-Brief oder eigene Tokens, gelten diese Werte; Fluent ist nur die Rückfallebene, und bewusste Abweichungen werden mit Begründung notiert. Die Inhalte sind sinngemäß zusammengefasst, nicht aus den Microsoft-Texten kopiert; das Projekt ist unabhängig und steht in keiner Verbindung zu Microsoft. Grundlage ist das Designsystem [Fluent 2](https://fluent2.microsoft.design/) von Microsoft; die beiden Bilder oben (Teams-Chat als Beispiel für Fluent 2 in der Praxis, Ansicht der Fluent-2-Website) stammen von dort und sind © Microsoft, nicht Teil der MIT-Lizenz. Sprache der Skill-Dateien: Englisch. Lizenz: MIT.

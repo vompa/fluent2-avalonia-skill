@@ -1,0 +1,15 @@
+{
+  "name": "vompa-skills",
+  "description": "Skills by vompa for Claude Code",
+  "owner": {
+    "name": "vompa",
+    "url": "https://github.com/vompa"
+  },
+  "plugins": [
+    {
+      "name": "fluent2-avalonia",
+      "source": "./",
+      "description": "Fluent 2 design rules, component behavior and review checklists for Avalonia desktop apps"
+    }
+  ]
+}

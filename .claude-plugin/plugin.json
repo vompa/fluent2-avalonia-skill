@@ -1,0 +1,15 @@
+{
+  "name": "fluent2-avalonia",
+  "displayName": "Fluent 2 for Avalonia",
+  "version": "0.1.0",
+  "description": "Fluent 2 design rules, component behavior and review checklists for Avalonia desktop apps, with headless test patterns and responsible AI guidance.",
+  "author": {
+    "name": "vompa",
+    "url": "https://github.com/vompa"
+  },
+  "homepage": "https://github.com/vompa/fluent2-avalonia-skill",
+  "repository": "https://github.com/vompa/fluent2-avalonia-skill",
+  "license": "MIT",
+  "keywords": ["avalonia", "fluent", "fluent-2", "winui", "design-system", "accessibility", "desktop", "dotnet"],
+  "skills": ["./fluent2-avalonia/"]
+}
