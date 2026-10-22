@@ -2,17 +2,17 @@
 
 Based on Microsoft's **[Fluent 2 design system](https://fluent2.microsoft.design/)**, the design language behind Windows, Microsoft 365 and Teams.
 
-<p align="center">
-  <img src="docs/images/fluent2-teams-chat.webp" width="620" alt="Fluent 2 in practice: a Microsoft Teams chat list on a phone, surrounded by soft 3D shapes, emoji reactions and a meeting card, illustrating Fluent 2's layered materials, rounded shapes and expressive color.">
-</p>
-<p align="center"><sub>Fluent 2 in practice: layered surfaces, rounded shapes, expressive color and clear hierarchy, here in Microsoft Teams. Image © Microsoft, from fluent2.microsoft.design.</sub></p>
+![Fluent 2 in practice: a Microsoft Teams chat list on a phone, surrounded by soft 3D shapes, emoji reactions and a meeting card, illustrating Fluent 2's layered materials, rounded shapes and expressive color.](docs/images/fluent2-teams-chat.webp)
 
-<p align="center">
-  <img src="docs/images/fluent2-design-site.webp" width="860" alt="The Fluent 2 design system website: left navigation with Get started, Design language (color, elevation, iconography, layout, material, motion, shapes, typography), Guidelines (accessibility, content design, design tokens) and Web React components; a second window shows the Typography page.">
-</p>
-<p align="center"><sub>The Fluent 2 website at <a href="https://fluent2.microsoft.design/">fluent2.microsoft.design</a>: design language, guidelines and components per platform. This skill condenses those pages into rules and checklists for Avalonia. Image © Microsoft.</sub></p>
+*Fluent 2 in practice: layered surfaces, rounded shapes, expressive color and clear hierarchy, here in Microsoft Teams. Image © Microsoft, from fluent2.microsoft.design.*
+
+![The Fluent 2 design system website: left navigation with Get started, Design language (color, elevation, iconography, layout, material, motion, shapes, typography), Guidelines (accessibility, content design, design tokens) and Web React components; a second window shows the Typography page.](docs/images/fluent2-design-site.webp)
+
+*The Fluent 2 website at [fluent2.microsoft.design](https://fluent2.microsoft.design/): design language, guidelines and components per platform. This skill condenses those pages into rules and checklists for Avalonia. Image © Microsoft.*
 
 The two images above are © Microsoft Corporation and are shown for reference only; they are not covered by this repository's MIT license.
+
+The skill is Markdown only: it runs no code, sends nothing and fetches nothing. See [PRIVACY.md](PRIVACY.md).
 
 A skill for Claude Code and Claude.ai that teaches Claude to build and review Avalonia desktop UIs the way Microsoft's Fluent 2 design system describes them: component behavior, states, keyboard handling, accessibility, content design, motion, and responsible AI patterns, with checklists you can verify and patterns for headless Avalonia tests.
 
@@ -70,9 +70,10 @@ fluent2-avalonia/
     avalonia-mapping.md       Fluent concepts as selectors, resources, behaviors, headless tests
     avalonia-12-notes.md      Avalonia 11 to 12 names, changed behavior, observed pitfalls
   evals/evals.json            three realistic test prompts
-scripts/validate.py           structure and link checks (standard library only)
-docs/images/                  the two Fluent 2 reference images shown above (© Microsoft)
+scripts/validate.py           structure and link checks for contributors (standard library only)
 ```
+
+The two reference images shown above live in a `docs` folder and are not part of the skill.
 
 Claude reads `SKILL.md` first and opens a reference file only when the task needs it.
 
