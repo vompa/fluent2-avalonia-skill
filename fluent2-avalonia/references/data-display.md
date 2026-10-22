@@ -48,6 +48,7 @@ Read this file when you build or review lists, tables, cards, avatars and person
 
 - Groups collapsible sections, all closed by default; opening one closes the previous (several may stay open when that does not overwhelm); chevron at the start or end, consistent; the header is a button with an expanded state; header height at least 44 (small 32), padding 0/12/0/10; header text short, sentence case, no period. Content that is required for the task does not belong inside. ([Accordion][f2-accordion], [Accordion source][gh-accordion])
 - Use it for rarely needed form fields ("More details") and open it automatically when it contains filled values. Enter and Space toggle it. A header height of 34 matching the project control height is a legitimate deviation. Derived.
+- In Avalonia 12 a `ToggleButton` header does not report expanded or collapsed on its own (observed, Avalonia 12.1.4). Give it a custom automation peer that implements `IExpandCollapseProvider`, with the state from `IsChecked` and `Expand()` and `Collapse()` setting it; sketch and test in `avalonia-mapping.md`, section 9. If the header is a control that overrides `StyleKeyOverride`, style it through the base type plus a class (`ToggleButton.accordion`), not its own type (`avalonia-mapping.md`, section 3, Precedence).
 
 ## 7. Divider and image
 
@@ -68,7 +69,7 @@ Read this file when you build or review lists, tables, cards, avatars and person
 - [ ] Numeric columns are right-aligned with tabular digits (screenshot).
 - [ ] Status is never carried by an avatar badge alone; text or tooltip exists.
 - [ ] Badge text is 12 px or larger and not truncated (screenshot at 200 percent text scale).
-- [ ] An accordion header is a button with an expanded state in automation; it opens by itself when it holds values.
+- [ ] An accordion header is a button with an expanded state in automation (test: get the peer, check `IExpandCollapseProvider`, `Expand()` and `Collapse()`); it opens by itself when it holds values.
 - [ ] Informative images have an accessible name; decorative ones are hidden from automation.
 - [ ] A clickable card has exactly one primary action.
 

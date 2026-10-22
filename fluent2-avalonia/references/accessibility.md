@@ -62,6 +62,7 @@ Read this file when you design or review keyboard navigation, focus order and fo
 
 - Every element needs an accessible name. Controls report role and content through automation peers; choose the correct text element type, because a wrong role confuses assistive tech. Use more than one cue (icon plus color, sound plus blink). ([Accessibility overview][wl-a11y])
 - Avalonia fills in names from content, and the result is often wrong without any visible sign; scan for it (section 7).
+- Expandable headers (accordion, disclosure) report expanded or collapsed: a `ToggleButton` alone reports only checked, so add a peer with `IExpandCollapseProvider` (`avalonia-mapping.md`, section 9, Expanded state on a toggle header).
 - Fields: name, role, value, required, help, error. Range controls report minimum, maximum, value and unit. Radio buttons announce position ("2 of 4"). ([Spin button][f2-spin], [WinUI radio buttons][wl-radio])
 - Images: informative ones have short alt text; decorative ones are hidden. Icon buttons have a name. ([Image][f2-image], [Iconography][f2-icons])
 - Messages: errors and warnings are assertive live regions, info and success polite. ([Message bar][f2-messagebar])

@@ -111,6 +111,7 @@ Because separating raw text from the parsed value lets a user type freely, makes
 
 - Fixed height, not growing as the user types; vertical scroll bar on overflow; `resize` only if you want it. WinUI says to set the height and not let the box grow. The source shows min heights 40, 52 and 64 and max heights 200, 260 and 320 for small, medium and large (assignment to sizes is (derived, not verified)). ([Textarea][f2-textarea], [Textarea source][gh-textarea], [WinUI text box][wl-textbox])
 - Counter: for limited text show a running count below ("120 characters left"); warn near the limit (for example from 90 percent). Derived. ([WinUI text box][wl-textbox])
+- Test the counter, and every other behavior that reads two properties, with a field created from XAML as well as one built in code. A counter that worked in code never ran from XAML in one project, because the markup assigns properties one at a time and `AcceptsReturn` was not yet set when the text arrived (observed, Avalonia 12.1.4). Recompute in `OnPropertyChanged` for each property the logic reads, or wire it in `OnApplyTemplate` or on attach; test with a mini view in more than one attribute order (`avalonia-mapping.md`, section 10, Instances built from XAML).
 - Enter inserts a line break, Tab leaves the field, Ctrl+Enter runs the default button. Derived.
 - Plain text only unless rich text is truly required. ([WinUI text box][wl-textbox])
 
@@ -228,6 +229,7 @@ A two-digit year resolves to the century closest to today; for a birthday it mus
 
 - [ ] Tab entry leaves the caret at the end (text) or selects all (fast fields); headless test checks `SelectionStart` and `SelectionLength`.
 - [ ] Enter triggers the default button in single-line fields and inserts a line break in multi-line fields (test).
+- [ ] Composite fields (counter, derived text, dependent states) are tested with instances created from XAML in more than one attribute order, not only built in code (mini-view test).
 - [ ] Esc restores the last committed value, a second Esc closes the form (test).
 - [ ] The clear button appears only in search fields and only with content.
 - [ ] Search shows recent items on focus, one "no results" line and the Esc ladder (test).

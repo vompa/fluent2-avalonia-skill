@@ -12,6 +12,7 @@ Read this file when you turn a Fluent rule from the other reference files into A
    - [Required template parts](#required-template-parts)
    - [Layout notes](#layout-notes)
 5. [Transitions and reduced motion](#5-transitions-and-reduced-motion)
+   - [Transforms from styles](#transforms-from-styles)
 6. [Behaviors as attached properties](#6-behaviors-as-attached-properties)
    - [Tooltip defaults](#tooltip-defaults)
 7. [Typed fields: parser, control, ViewModel](#7-typed-fields-parser-control-viewmodel)
@@ -21,11 +22,14 @@ Read this file when you turn a Fluent rule from the other reference files into A
    - [F6 regions](#f6-regions)
    - [Tab order walk](#tab-order-walk)
 9. [Automation](#9-automation)
+   - [Expanded state on a toggle header](#expanded-state-on-a-toggle-header)
    - [Finding and fixing accessible names](#finding-and-fixing-accessible-names)
 10. [Headless tests](#10-headless-tests)
     - [Reading transitions](#reading-transitions)
     - [What headless does not show](#what-headless-does-not-show)
     - [Flyouts, keys and commands](#flyouts-keys-and-commands)
+    - [Scrolling containers](#scrolling-containers)
+    - [Instances built from XAML](#instances-built-from-xaml)
 11. [Checklist](#11-checklist)
 12. [Sources](#12-sources)
 
@@ -126,6 +130,27 @@ Consequences seen in practice:
 - Dialog layout: `Orientation` or `HorizontalAlignment` written as attributes on an element could not be changed by a class style (compact layout, narrow window). Move such values from the XAML element into a style, so another style can override them.
 - Tooltip text: a tooltip is a logical child of its target, so a descendant selector of the target (`Border.chip TextBlock`) also styles the text inside the tooltip (observed, Avalonia 12.1.4). Seen: tooltip text in the target's text color on the dark tooltip surface, contrast 1.0. Use the child combinator for text that belongs to the target (`Border.chip > TextBlock`) and test every real tooltip (`navigation.md`, section 6).
 - MenuItem: the entry radius hangs on `MenuItem.CornerRadius` through a `TemplateBinding`, so it can only be set on the `MenuItem` itself (`<Style Selector="MenuItem"><Setter Property="CornerRadius" .../></Style>`); a setter on the template border does nothing.
+- Style key: a control that overrides `StyleKeyOverride` (for example `protected override Type StyleKeyOverride => typeof(ToggleButton);` so that it reuses the theme of `ToggleButton`) is not hit by a style on its own type, `c|AccordionHeader` (observed, Avalonia 12.1.4). Select the base type plus a class instead, and add the class in the control's constructor so no view can forget it. Because type selectors compare against the style key, not the CLR type (derived, not verified).
+
+```xml
+<!-- wrong: matches nothing, no warning -->
+<Style Selector="c|AccordionHeader"><Setter Property="MinHeight" Value="44"/></Style>
+<!-- right: base type of the style key plus the class that the control adds to itself -->
+<Style Selector="ToggleButton.accordion"><Setter Property="MinHeight" Value="44"/></Style>
+```
+
+  Test "the style applies": create the control in a window with the app styles and assert a value that only this style sets. Write the test first and watch it fail with the wrong selector; pick a property whose theme value differs, or it passes for the wrong reason.
+
+```csharp
+[AvaloniaFact]
+public void Accordion_header_style_applies()
+{
+    var header = new AccordionHeader();            // StyleKeyOverride => typeof(ToggleButton); adds the class "accordion"
+    var window = new Window { Content = header };
+    window.Show();
+    Assert.Equal(44, header.MinHeight);            // set only by the accordion style
+}
+```
 
 When a property does not change, find which of the three sets it (probe test, section 4), then change it at that level.
 
@@ -214,6 +239,7 @@ Layout findings from an Avalonia 12.1.4 project (observed); the fixes are Derive
 
 - Two `*` columns are not equal under infinite width. When a `Grid` is measured without a width limit (inside a popup or flyout that sizes to its content, a horizontal `ScrollViewer`, a `StackPanel`), each star column takes the width of its content, so two columns of unequal content stay unequal. Give the surrounding frame a width: stretch it (`HorizontalAlignment="Stretch"`) with a `MaxWidth`, or a fixed `Width`, so the grid is measured with a finite width. Check with the `ActualWidth` of both columns' content.
 - One fixed column across several lists: put `SharedSizeGroup="Keys"` on the column definition in each row template and `Grid.IsSharedSizeScope="True"` on a common ancestor of all the `ItemsControl`s. The column then takes the width of the widest cell of every list in the scope, so keys, labels or times line up across groups. Without the scope, every row sizes on its own. A column with a shared size group must be `Auto`-sized or fixed.
+- A theme style with `MinHeight` 34 on `Button` turns `Width="28" Height="28"` into a 28 x 34 element, because the minimum beats the explicit height (observed, Avalonia 12.1.4). Small icon buttons need `MinHeight="28"` (and `MinWidth` where the theme sets one) next to the size, ideally in the style of the icon-button class. Measure the target: after layout, assert `Bounds.Width` and `Bounds.Height` of every small button against the design size, because the screenshot of a 28 x 34 button looks plausible.
 - `DesiredSize` includes the element's `Margin`. When you re-measure row heights in code or compare them with a design value in a test, subtract the vertical margin, or the result is too large by the margin (derived from the layout contract; confirm with one row).
 
 ## 5. Transitions and reduced motion
@@ -266,6 +292,21 @@ public static class ReducedMotion
   2. Attach the overrides to the `Application` before the first window exists (for example in `OnFrameworkInitializationCompleted`, before the main window is created). Styles added to a window that is already open left a 75 ms transition of the Fluent template in place (observed).
   3. In the test, ignore template parts that are not visible. Avalonia sets a transition on a part of the `ToggleSwitch` template in code, and no style reaches it; the part is not drawn, so it does not matter to the user.
 - Test: apply `ReducedMotion.Overrides()` to the application, open every page, and assert that no visible element has a transition with a duration above zero. `ITransition` does not expose its duration, so read it as shown in [Reading transitions](#reading-transitions) (section 10). A test that can only run when the OS setting is on will never run; this is why the override is a plain method.
+
+### Transforms from styles
+
+A `RenderTransform` set by a style setter (`rotate(90deg)`, `scale(0.97)`) is a `TransformOperations`, not a `RotateTransform` or `ScaleTransform` (observed, Avalonia 12.1.4). A test that casts to `RotateTransform` gets `null` (or an exception) and fails for the wrong reason. Read the resulting matrix, which every transform type exposes through `Value` (check the member in your version):
+
+```csharp
+static double RotationDegrees(Visual element)
+{
+    var m = element.RenderTransform!.Value;                  // Matrix of the transform operations
+    return Math.Atan2(m.M12, m.M11) * 180 / Math.PI;
+}
+// Assert.Equal(90, RotationDegrees(chevron), precision: 3);
+```
+
+With a `TransformOperationsTransition` on the element the value is intermediate while the animation runs; read it after the transition or with the reduced-motion override applied (section 5, Reduced motion), so the test sees the end state. Scale reads from `m.M11` and `m.M22`.
 
 ## 6. Behaviors as attached properties
 
@@ -591,6 +632,7 @@ Use the peer name (not the control type) so the list is what a screen-reader use
 | Access key | `AutomationProperties.AccessKey` |
 | Live region for message bars | `AutomationProperties.LiveSetting` (`Assertive` for errors and warnings, `Polite` otherwise) |
 | Hide decorative elements | `AutomationProperties.AccessibilityView="Raw"` (check the value name in your version) |
+| Expanded or collapsed state of a header | A custom peer that implements `IExpandCollapseProvider` (below) |
 
 Avalonia derives accessible names from content, and the result is often wrong without any sign in the source or in a screenshot (observed, Avalonia 12.1.4; rules in `accessibility.md`, section 7). `IsRequiredForForm` is read from the attached property, not from the peer: use `AutomationProperties.GetIsRequiredForForm(field)` in tests.
 
@@ -618,6 +660,34 @@ protected override AutomationPeer OnCreateAutomationPeer() => new NumberFieldAut
 ```
 
 The conversion to `double` is for the automation surface only; the money path stays `decimal`. Keep the step buttons of a number field out of the tab order (`Focusable="False"` or `IsTabStop="False"`) and name them "Increase" and "Decrease". Fluent and WinUI sources for the rules: see `accessibility.md`.
+
+### Expanded state on a toggle header
+
+"The header is a button with an expanded state" (`data-display.md`, section 6) does not come with a `ToggleButton`: its stock peer reports the toggle state, not expanded or collapsed, so a screen reader hears "checked" instead of "expanded" (observed, Avalonia 12.1.4). Give the header its own peer that adds `IExpandCollapseProvider`, with the state taken from `IsChecked`. Sketch (derived, not verified; let the compiler list the members of the interface in your version, for example `ShowsMenu`):
+
+```csharp
+public sealed class AccordionHeader : ToggleButton
+{
+    public AccordionHeader() => Classes.Add("accordion");
+    protected override Type StyleKeyOverride => typeof(ToggleButton);
+    protected override AutomationPeer OnCreateAutomationPeer() => new AccordionHeaderAutomationPeer(this);
+}
+
+public sealed class AccordionHeaderAutomationPeer : ToggleButtonAutomationPeer, IExpandCollapseProvider
+{
+    private readonly ToggleButton _header;
+
+    public AccordionHeaderAutomationPeer(ToggleButton owner) : base(owner) => _header = owner;
+
+    public ExpandCollapseState ExpandCollapseState =>
+        _header.IsChecked == true ? ExpandCollapseState.Expanded : ExpandCollapseState.Collapsed;
+    public bool ShowsMenu => false;
+    public void Expand() => _header.IsChecked = true;
+    public void Collapse() => _header.IsChecked = false;
+}
+```
+
+Keep the toggle provider of the base peer; both patterns stay available. Raising a property-changed event when `IsChecked` changes, so a running screen reader announces the new state, is (derived, not verified); check it with Narrator. Test: get the peer with `ControlAutomationPeer.CreatePeerForElement(header)`, check that it implements `IExpandCollapseProvider` (or ask for the provider with the lookup your version offers, `GetProvider<T>()` or `GetPattern`), assert `Collapsed` at rest, call `Expand()`, assert `Expanded` and `IsChecked`, call `Collapse()` and assert the reverse.
 
 ### Finding and fixing accessible names
 
@@ -757,6 +827,9 @@ Patterns worth having:
 | Tooltip contrast | Open every real tooltip of the page (set the tip, show it, find its text in the overlay), resolve the text and surface colors and assert 4.5:1 in light and dark; a descendant selector of the target can change the text color (section 3, Precedence). |
 | Contrast | Resolve brushes from both theme variants (`Application.Current.RequestedThemeVariant`), compute WCAG ratios, assert 4.5 and 3.0 thresholds per state. |
 | Screenshots | `window.CaptureRenderedFrame()` after a short wait for animations (at least 200 ms for fades; advance the render timer or delay), once per state per theme. |
+| Style applies | Create the control in a window with the app styles and assert a value that only the new style sets (section 3, Precedence, Style key). |
+| Scroll container | `BringIntoView()` on the card, wait one frame, then click or capture (below, Scrolling containers). |
+| XAML-built field | Load a mini view that declares the field in markup and assert the behavior, in more than one attribute order (below, Instances built from XAML). |
 
 A small contrast helper:
 
@@ -818,6 +891,45 @@ Observed in Avalonia 12.1.4 headless tests; the way to reach the content is Deri
 - Send keys to the element that should handle them: `control.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Down })`. Window-level helpers such as `KeyPressQwerty` go to the focused element of the window, which is not inside a popup unless focus was moved there.
 - `button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent))` raises the event but does not run the button's `Command`. To test the command, execute it directly (`button.Command!.Execute(button.CommandParameter)`), or click with the headless mouse (`MouseDown` and `MouseUp` at the center of the button) so the control runs its own click path.
 
+### Scrolling containers
+
+Cards, rows and panels inside a scrolling container are laid out at their full position, so one below the visible edge is clipped: a headless click at its coordinates hits nothing, and a captured frame shows an empty area (observed, Avalonia 12.1.4). Bring the element into view first, then wait one frame so layout and render catch up, and only then click or capture:
+
+```csharp
+card.BringIntoView();
+Dispatcher.UIThread.RunJobs();                     // run the pending layout (call names: check your version)
+await Task.Delay(50);                              // one frame; or advance the render timer of the headless platform
+var center = card.TranslatePoint(new Point(card.Bounds.Width / 2, card.Bounds.Height / 2), window)!.Value;
+window.MouseDown(center, MouseButton.Left);        // take the point after BringIntoView, not before
+```
+
+Compute the click point after `BringIntoView`, because the scroll offset changed it. For a screenshot of the whole list, give the window a height that fits the content instead of scrolling, or capture one frame per scroll position.
+
+### Instances built from XAML
+
+A composite field can pass every test with instances built in code and still not work in the app (observed, Avalonia 12.1.4). Seen: a character counter next to a multi-line field never ran from XAML. The XAML loader assigns the properties one after another in markup order; the `Text` arrived while `AcceptsReturn` was still `false`, the counter logic read that state once and never again. In code the test set the properties in a different order and was green.
+
+- Test behavior of composite fields (counters, derived text, enabled states, anything that reads two properties) with instances created from XAML, not only with `new` and property assignments. Because the assignment order and timing of the loader is part of the behavior.
+- Use a mini view: a small `UserControl` in the test project, declared in AXAML like production code, that holds the field with the attributes the app uses. Compiled XAML takes the same path as the app. A runtime-loaded string (`AvaloniaRuntimeXamlLoader.Load`) is a shortcut whose assignment order is (derived, not verified) the same.
+- Repeat the test with the attributes in a second order (`AcceptsReturn` before `Text`, and after): the field must behave the same either way.
+- Fix in the control, not in the markup order. Recompute dependent state in `OnPropertyChanged` for every property it reads, or wire it in `OnApplyTemplate` or on attach (`OnLoaded`) after all properties exist:
+
+```csharp
+protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+{
+    base.OnPropertyChanged(change);
+    if (change.Property == TextProperty || change.Property == AcceptsReturnProperty || change.Property == MaxLengthProperty)
+        UpdateCounter();   // reads Text, AcceptsReturn and MaxLength, so any of them can trigger it
+}
+```
+
+```xml
+<!-- test project: CounterFieldHost.axaml -->
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:local="using:Tests.Controls">
+  <local:CounterTextBox x:Name="Field" Text="Hello" AcceptsReturn="True" MaxLength="200"/>
+</UserControl>
+```
+
 ## 11. Checklist
 
 - [ ] No hex colors, named colors, inline `BoxShadow` values or magic numbers in view XAML; all values come from resources (the scans in section 2); shadows are `BoxShadows` resources per theme.
@@ -841,6 +953,12 @@ Observed in Avalonia 12.1.4 headless tests; the way to reach the content is Deri
 - [ ] Tooltip delay and placement come from one app-wide default, not from `OverrideDefaultValue` (section 6).
 - [ ] Automation names, help, required and live-region settings present on custom controls (test or inspector).
 - [ ] The name scan finds no empty or type-like names on any page; list rows, icon buttons and help buttons have names that identify their target (section 9).
+- [ ] A control that overrides `StyleKeyOverride` is styled through its base type plus a class, and a test proves that the style applies (section 3, Precedence).
+- [ ] Tests of style-set transforms read the matrix (`RenderTransform.Value`), not a cast to `RotateTransform` (section 5, Transforms from styles).
+- [ ] An expandable header has a peer with `IExpandCollapseProvider`; a test gets the peer and checks the state and `Expand()` and `Collapse()` (section 9).
+- [ ] Target size measured: small icon buttons have `MinHeight` and `MinWidth` next to `Width` and `Height`, and a layout test compares `Bounds` with the design size (section 4, Layout notes).
+- [ ] Click and image tests on cards inside a scrolling panel call `BringIntoView()` and wait one frame first (section 10, Scrolling containers).
+- [ ] Composite fields are also tested with instances created from XAML, in more than one attribute order (section 10, Instances built from XAML).
 - [ ] Every selector and property used in this file was checked against the project's Avalonia version.
 
 ## 12. Sources

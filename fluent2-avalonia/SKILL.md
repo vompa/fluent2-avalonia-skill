@@ -35,7 +35,7 @@ When reviewing existing UI, report findings as a table with columns Finding, Rul
 - Read [content-design.md](references/content-design.md) when the task involves labels, titles, buttons text, error text, empty states, tooltips text, number and date formats.
 - Read [accessibility.md](references/accessibility.md) when the task involves keyboard model, focus order and restoration, tab order, F6 regions, shortcuts, screen readers and accessible names (name scan), contrast, high contrast, reduced motion, Narrator checks.
 - Read [responsible-ai.md](references/responsible-ai.md) when the task involves AI output, drafts, assistants, agents, disclosure, consent, feedback, review scoring.
-- Read [avalonia-mapping.md](references/avalonia-mapping.md) when the task involves writing AXAML, selectors for states and value precedence, resources and themes, template parts (required parts, probing), transitions and the reduced-motion override, layout notes (star columns, shared sizes, margins), attached behaviors (roving tab stop, toolbar overflow panel, tooltip defaults, F6 regions), automation properties and name scans, focus code, tab order walks, headless tests (also flyouts, keys and commands) and their limits.
+- Read [avalonia-mapping.md](references/avalonia-mapping.md) when the task involves writing AXAML, selectors for states and value precedence (also style keys of derived controls), resources and themes, template parts (required parts, probing), transitions and the reduced-motion override, layout notes (star columns, shared sizes, margins, minimum heights), transforms from styles, attached behaviors (roving tab stop, toolbar overflow panel, tooltip defaults, F6 regions), automation properties, expand and collapse peers and name scans, focus code, tab order walks, headless tests (also flyouts, keys and commands, scrolling containers, instances built from XAML) and their limits.
 - Read [avalonia-12-notes.md](references/avalonia-12-notes.md) when code from Avalonia 11 examples does not compile or behave, an attached property, a selector or a test filter fails in Avalonia 12, or you want the list of observed pitfalls.
 
 Most UI tasks need two or three of these. A new input control, for example, needs [inputs.md](references/inputs.md), [accessibility.md](references/accessibility.md) and [avalonia-mapping.md](references/avalonia-mapping.md).
@@ -58,12 +58,14 @@ Inputs (details in [inputs.md](references/inputs.md))
 - Esc ladder: close the open list, then restore the changed field, then close the form. Enter commits the field and runs the default button in single-line fields only.
 - Money uses `decimal`, rejects extra fraction digits instead of rounding, and an empty field is not zero.
 - Dependent fields (end after start) recompute after commit, not during typing.
+- Test composite fields (counter, derived state) also with instances created from XAML, because markup assigns properties one by one and logic that reads two of them can miss the order.
 
 Controls (details in [buttons-and-selection.md](references/buttons-and-selection.md), [navigation.md](references/navigation.md), [dialogs-and-messages.md](references/dialogs-and-messages.md), [data-display.md](references/data-display.md))
 
 - One primary button per layout; labels are verbs; confirmation buttons answer the dialog title ("Delete", "Cancel"), never "OK" or "Yes".
 - Disabled controls that are not self-explanatory say why in a tooltip. A tooltip is a logical child of its target, so selectors for text in the target use `>`; open every real tooltip in a test and check its contrast.
 - Radio groups are one tab stop with arrows that move and select. Switches act instantly; a form with a Save button uses checkboxes.
+- A control that overrides `StyleKeyOverride` is styled through its base type plus a class, not its own type; a test proves the style applies. An expandable header needs a peer that reports expanded or collapsed.
 - Tab strips and toolbars never wrap; the overflow goes into a menu that the keyboard reaches.
 - Initial focus in a dialog is never on a destructive action (a destructive question puts focus and Enter on Cancel; Esc cancels); focus returns to the invoker on close.
 - Field problems stay at the field, persistent conditions go into a message bar, short confirmations into a toast, decisions before data loss into an alert dialog.

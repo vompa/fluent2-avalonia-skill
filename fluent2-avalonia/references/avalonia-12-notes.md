@@ -59,6 +59,12 @@ Observed in Avalonia 12.1.4. Each row names the pattern that fails and what to d
 - Tab follows source order: a bottom-docked `DockPanel` child written before the content takes focus first, and `KeyboardNavigation.TabIndex` did not change that (`avalonia-mapping.md`, section 8, Tab order walk).
 - A view that handles keys itself must be the explicit F6 focus target, otherwise arrows reach another handler (`avalonia-mapping.md`, section 8, F6 regions).
 - A scan for `#` finds neither named colors nor shadow colors in `BoxShadow` strings (`avalonia-mapping.md`, section 2).
+- A control with `protected override Type StyleKeyOverride => typeof(ToggleButton)` is not matched by a style on its own type (`c|AccordionHeader`); target the base type plus a class (`ToggleButton.accordion`) and write a test that proves the style applies (`avalonia-mapping.md`, section 3, Precedence).
+- A `RenderTransform` set by a style is a `TransformOperations`, not a `RotateTransform`: a cast gives `null` or fails. Read the matrix instead (`avalonia-mapping.md`, section 5, Transforms from styles).
+- A custom header that must announce expanded or collapsed (accordion) needs its own `ToggleButtonAutomationPeer` that implements `IExpandCollapseProvider`; the stock peer reports only the toggle state (`avalonia-mapping.md`, section 9, Expanded state on a toggle header).
+- A theme `MinHeight` of 34 on buttons turns `Width="28" Height="28"` into a 28 x 34 element; small icon buttons need `MinHeight="28"` as well (`avalonia-mapping.md`, section 4, Layout notes).
+- Cards inside a scrolling panel lie below the visible edge in headless tests, so clicks and frames miss them; call `BringIntoView()` and wait one frame first (`avalonia-mapping.md`, section 10, Scrolling containers).
+- A counter or other property-dependent behavior of a composite field worked when built in code and never ran when created from XAML, because XAML assigns properties one by one in markup order and one input (`AcceptsReturn`) was not yet set when the content arrived. Test with instances created from XAML and recompute in `OnPropertyChanged` (`avalonia-mapping.md`, section 10, Instances built from XAML; `inputs.md`, section 6).
 
 ## 4. Sources
 
