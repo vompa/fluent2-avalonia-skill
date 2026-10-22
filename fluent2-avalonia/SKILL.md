@@ -5,7 +5,7 @@ description: Fluent 2 design rules, component behavior and review checklists for
 
 # Fluent 2 for Avalonia
 
-This skill turns Microsoft's Fluent 2 guidance (design system, WinUI documentation, Fluent UI source) into rules, numbers, checklists and test patterns for Avalonia desktop apps. It is an independent, paraphrased summary with a source link on each rule. It does not replace the project's own design brief.
+This skill turns Microsoft's Fluent 2 guidance (design system, WinUI documentation, Fluent UI source) into rules, numbers, checklists and test patterns for Avalonia desktop apps. It is an independent, paraphrased summary with a source link on each rule. It does not replace the project's own design brief. Examples target Avalonia 12; section 11 of [avalonia-mapping.md](references/avalonia-mapping.md) lists the Avalonia 11 names.
 
 ## The one rule that comes first
 
@@ -35,7 +35,7 @@ When reviewing existing UI, report findings as a table with columns Finding, Rul
 - Read [content-design.md](references/content-design.md) when the task involves labels, titles, buttons text, error text, empty states, tooltips text, number and date formats.
 - Read [accessibility.md](references/accessibility.md) when the task involves keyboard model, focus order and restoration, F6 regions, shortcuts, screen readers, contrast, high contrast, reduced motion, Narrator checks.
 - Read [responsible-ai.md](references/responsible-ai.md) when the task involves AI output, drafts, assistants, agents, disclosure, consent, feedback, review scoring.
-- Read [avalonia-mapping.md](references/avalonia-mapping.md) when the task involves writing AXAML, selectors for states, resources and themes, template parts and probing, transitions, attached behaviors, automation properties, focus code, headless tests, or the Avalonia 11 to 12 renames.
+- Read [avalonia-mapping.md](references/avalonia-mapping.md) when the task involves writing AXAML, selectors for states and value precedence, resources and themes, template parts (required parts, probing), transitions, attached behaviors (roving tab stop, toolbar overflow panel, tooltip defaults), automation properties, focus code, headless tests and their limits, or the Avalonia 11 to 12 renames.
 
 Most UI tasks need two or three of these. A new input control, for example, needs [inputs.md](references/inputs.md), [accessibility.md](references/accessibility.md) and [avalonia-mapping.md](references/avalonia-mapping.md).
 
@@ -64,7 +64,7 @@ Controls (details in [buttons-and-selection.md](references/buttons-and-selection
 - Disabled controls that are not self-explanatory say why in a tooltip.
 - Radio groups are one tab stop with arrows that move and select. Switches act instantly; a form with a Save button uses checkboxes.
 - Tab strips and toolbars never wrap; the overflow goes into a menu that the keyboard reaches.
-- Initial focus in a dialog is never on a destructive action; focus returns to the invoker on close.
+- Initial focus in a dialog is never on a destructive action (a destructive question puts focus and Enter on Cancel; Esc cancels); focus returns to the invoker on close.
 - Field problems stay at the field, persistent conditions go into a message bar, short confirmations into a toast, decisions before data loss into an alert dialog.
 
 Content (details in [content-design.md](references/content-design.md))
@@ -108,6 +108,6 @@ These are fallbacks. The project's tokens win. Web values come from Fluent UI Re
 
 - Fluent 2 pages were read through summaries; numbers are most reliable where source code or WinUI docs state the same value. The reference files say where a value is derived or unverified.
 - Not covered or not verified: visual comparison against real Fluent components, Avalonia support for spell check, on-screen keyboard input scope, Mica or Acrylic, high-contrast color mapping, behavior at 125 and 150 percent display scaling, the Microsoft Writing Style Guide, WinUI TeachingTip, command bar and calendar view, Segoe Fluent Icons.
-- Avalonia 11 and 12 are covered; the renames are listed in [avalonia-mapping.md](references/avalonia-mapping.md), section 11. Items marked **observed** were seen in one Avalonia 12.1.4 desktop project on Windows (Fluent theme) and were not re-checked on Avalonia 11 or on other platforms.
+- Examples target Avalonia 12; the Avalonia 11 names are listed in [avalonia-mapping.md](references/avalonia-mapping.md), section 11. Items marked **observed** were seen in one Avalonia 12.1.4 desktop project on Windows (Fluent theme) and were not re-checked on Avalonia 11 or on other platforms.
 - Avalonia selectors, property names, template parts and the headless API vary by version. Confirm each against the project's version before relying on it, with a compiler error, reflection or a template probe test.
 - Fluent is a Microsoft design system; this skill is an independent summary and is not affiliated with or endorsed by Microsoft.

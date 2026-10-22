@@ -1,19 +1,25 @@
 # Avalonia mapping: how Fluent concepts become AXAML, styles, behaviors and tests
 
-Read this file when you turn a Fluent rule from the other reference files into Avalonia code: choosing selectors for states, wiring tokens, writing transitions, adding keyboard behavior, exposing automation, restoring focus, and testing with headless input. Fluent itself says little about Avalonia; everything here is practical guidance, so treat it as **Derived** and sketched for Avalonia 11 and 12. Property, event and template-part names change between versions and themes (section 11 lists the 11 to 12 renames), so confirm each one against the control theme and the version your project uses before copying it. Where a statement is an observed behavior rather than documented, it says **observed** and names the version; every observed item here comes from one Avalonia 12.1.4 desktop project on Windows and was not re-checked on Avalonia 11.
+Read this file when you turn a Fluent rule from the other reference files into Avalonia code: choosing selectors for states, wiring tokens, writing transitions, adding keyboard behavior, exposing automation, restoring focus, and testing with headless input. Fluent itself says little about Avalonia; everything here is practical guidance, so treat it as **Derived**. Examples target Avalonia 12; section 11 lists the Avalonia 11 names. Property, event and template-part names change between versions and themes, so confirm each one against the control theme and the version your project uses before copying it. Where a statement is an observed behavior rather than documented, it says **observed** and names the version; every observed item here comes from one Avalonia 12.1.4 desktop project on Windows and was not re-checked on Avalonia 11.
 
 ## Contents
 
 1. [Start from what the project already has](#1-start-from-what-the-project-already-has)
 2. [Tokens as resources](#2-tokens-as-resources)
 3. [States as selectors](#3-states-as-selectors)
+   - [Precedence](#precedence)
 4. [Templates and the field underline](#4-templates-and-the-field-underline)
+   - [Required template parts](#required-template-parts)
 5. [Transitions and reduced motion](#5-transitions-and-reduced-motion)
 6. [Behaviors as attached properties](#6-behaviors-as-attached-properties)
+   - [Tooltip defaults](#tooltip-defaults)
 7. [Typed fields: parser, control, ViewModel](#7-typed-fields-parser-control-viewmodel)
 8. [Keyboard, focus and navigation](#8-keyboard-focus-and-navigation)
+   - [Roving tab stop](#roving-tab-stop)
+   - [Toolbar overflow panel](#toolbar-overflow-panel)
 9. [Automation](#9-automation)
 10. [Headless tests](#10-headless-tests)
+    - [What headless does not show](#what-headless-does-not-show)
 11. [Avalonia 11 to 12 names](#11-avalonia-11-to-12-names)
 12. [Observed pitfalls](#12-observed-pitfalls)
 13. [Checklist](#13-checklist)
@@ -70,6 +76,22 @@ Rules that save debugging time:
 - A state selector on a template part needs the `/template/` form, for example `TextBox:pointerover /template/ Border#PART_BorderElement`. The part names come from the theme's template; look them up in the theme source of the version you use.
 - A hover style that reuses the same brush as the rest state is invisible. When you change the rest state, re-check every state that shares the token.
 - Fluent's disabled state is exempt from contrast rules, but keep label and help text readable: apply the disabled look to the input element, not to the field container.
+
+### Precedence
+
+Three rules decide which value a property ends up with (observed, Avalonia 12.1.4; the ranking is derived from these observations, not taken from the Avalonia documentation):
+
+1. A value that the control template sets itself beats every style setter. A style on the control cannot change it; change it where the template reads it (a theme resource, a control property that the template binds to, or `TemplateApplied`).
+2. Among style setters, a rule with a pseudo-class (`:checked`, `:unchecked`, `:pointerover`, `:pressed`) beats the base rule of the same control. The theme ships pseudo-class rules for the states it styles, so your base rule loses against them in exactly those states.
+3. A local value (an attribute in XAML, or a value set in code) beats both. State and class styles then have no effect on that property.
+
+Consequences seen in practice:
+
+- CheckBox: a base style on the box part (`Border#NormalRectangle`) left the border at the theme's value while unchecked. The same setter under `CheckBox:unchecked /template/ Border#NormalRectangle` took effect. Write the state you want to change; do not rely on the base rule.
+- Dialog layout: `Orientation` or `HorizontalAlignment` written as attributes on an element could not be changed by a class style (compact layout, narrow window). Move such values from the XAML element into a style, so another style can override them.
+- MenuItem: the entry radius hangs on `MenuItem.CornerRadius` through a `TemplateBinding`, so it can only be set on the `MenuItem` itself (`<Style Selector="MenuItem"><Setter Property="CornerRadius" .../></Style>`); a setter on the template border does nothing.
+
+When a property does not change, find which of the three sets it (probe test, section 4), then change it at that level.
 
 ## 4. Templates and the field underline
 
@@ -134,6 +156,20 @@ Template parts you will meet in the Avalonia 12 Fluent templates (observed, Aval
 | `PART_TextPresenter` | TextBox | Text, caret and selection. |
 | `PART_ScrollViewer` | TextBox (multi-line) | Scrolling around the presenter. |
 
+### Required template parts
+
+A replacement template must contain the parts that the control looks up by name. Names in the Avalonia 12 Fluent theme:
+
+| Control | Part or element | Role | Status |
+| --- | --- | --- | --- |
+| ToggleSwitch | `PART_SwitchKnob`, `PART_MovingKnobs` | The knob and the element that moves it. A custom template without them does not compile: error AVLN2205. | Observed (12.1.4) |
+| CheckBox | `Border#NormalRectangle` | The box that draws border and fill. Style its states through it (section 3, Precedence). | Name observed; whether the template requires it: derived, not verified |
+| RadioButton | `Ellipse#OuterEllipse` | The outer ring of the circle. | Name observed; whether the template requires it: derived, not verified |
+| MenuItem | `Border#PART_LayoutRoot` | Surface of one entry; reach it with `MenuItem /template/ Border#PART_LayoutRoot`. Its radius is not set here (section 3, Precedence). | Name observed |
+| Menu flyout presenter | `Border#LayoutRoot` | Surface of the open menu: background, border, radius, shadow. Reach it through the template of the presenter. | Name observed; the presenter type name: probe it |
+
+Context menus, combo box popups and other controls have their own templates; run the probe from this section to list their names instead of assuming that they match. Copy the names from the probe output of your version, because they are theme details and can change.
+
 Focus rings for buttons and list rows: the control's `FocusAdorner` draws the ring. An adorner drawn outside the element's bounds is clipped by the adorner layer; turn clipping off with `AdornerLayer.IsClipEnabled="False"` on the element (observed). Calling `Focus(NavigationMethod.Tab)` shows the ring only if the element did not already have focus; to test it, focus another element first (observed).
 
 ## 5. Transitions and reduced motion
@@ -195,7 +231,7 @@ public static class TabFocus
         if (e.NewValue is TabFocusMode.CaretAtEnd or TabFocusMode.SelectAll) box.GotFocus += OnGotFocus;
     }
 
-    // Avalonia 11: GotFocusEventArgs (see section 11)
+    // FocusChangedEventArgs is the Avalonia 12 type (section 11 has the older name)
     private static void OnGotFocus(object? sender, FocusChangedEventArgs e)
     {
         if (sender is not TextBox box || e.NavigationMethod != NavigationMethod.Tab) return;
@@ -212,7 +248,27 @@ public static class TabFocus
 
 Use it as `local:TabFocus.Mode="SelectAll"` on time, date, number, money and search fields and `local:TabFocus.Mode="CaretAtEnd"` on name, address and note fields. A text field after a button needs the test "Tab in, `SelectionStart` equals `SelectionEnd` equals the text length"; a fast field needs the test "Tab in, the selection covers the whole text". Write both tests first and let them decide whether the behavior is needed at all.
 
-Other behaviors worth centralizing: Esc restores the last committed value (and consumes the key so the next Esc closes the form); Enter commits and runs the default button; paste sanitizing; wheel changes the value only while focused; arrow-step repeat with a 300 ms delay then acceleration.
+Other behaviors worth centralizing: Esc restores the last committed value (and consumes the key so the next Esc closes the form); Enter commits and runs the default button; paste sanitizing; wheel changes the value only while focused; arrow-step repeat with a 300 ms delay then acceleration. For one tab stop per group see [Roving tab stop](#roving-tab-stop) in section 8.
+
+### Tooltip defaults
+
+`ToolTip.ShowDelay` and `ToolTip.Placement` are attached properties, and you want one default for the whole app (250 ms, a fixed placement). Calling `OverrideDefaultValue` on them throws "Metadata already set", because `Control` has already set their metadata (observed, Avalonia 12.1.4). The pattern that works: subscribe once to `ToolTip.TipProperty.Changed` and set the values at style priority, so a value set locally on one control still wins.
+
+```csharp
+public static class ToolTipDefaults
+{
+    // Call once at startup, for example from App.Initialize.
+    public static void Register() =>
+        ToolTip.TipProperty.Changed.AddClassHandler<Control>((control, e) =>
+        {
+            if (e.NewValue is null) return;   // no tip, nothing to configure
+            control.SetValue(ToolTip.ShowDelayProperty, 250, BindingPriority.Style);
+            control.SetValue(ToolTip.PlacementProperty, PlacementMode.Top, BindingPriority.Style);
+        });
+}
+```
+
+Test: set `ToolTip.Tip` on a control and assert `ToolTip.GetShowDelay(control)` is 250; set `ToolTip.SetShowDelay(control, 0)` locally afterwards and assert that it stays 0. The values are the project's tokens, not constants (`navigation.md`, section 6).
 
 ## 7. Typed fields: parser, control, ViewModel
 
@@ -227,9 +283,9 @@ Money uses `decimal`; the display and parse paths take a `CultureInfo`; no `doub
 
 ## 8. Keyboard, focus and navigation
 
-- Group as one tab stop: `KeyboardNavigation.TabNavigation="Once"` on the group container with arrow handling inside (radio groups, button strips). `Cycle` wraps inside popups such as menus; `Continue` is the default.
+- Group as one tab stop: `KeyboardNavigation.TabNavigation="Once"` on the group container with arrow handling inside (radio groups, button strips). `Cycle` wraps inside popups such as menus; `Continue` is the default. When the one tab stop must be the selected item (tab strip, radio group), use the recipe under [Roving tab stop](#roving-tab-stop).
 - Region switching with F6: keep an ordered list of region roots, intercept `KeyDown` for F6 and Shift+F6 on the window, move focus to the first focusable descendant of the next region. Give each root `AutomationProperties.Name`.
-- Restoring focus after a transient surface closes: store the invoker before opening, then call `invoker.Focus()` after close (`Dispatcher.UIThread.Post` when closing from inside a handler). When the focused element hides itself, no element owns focus and keys never reach your view (observed); listen with `AddHandler(InputElement.KeyDownEvent, handler, RoutingStrategies.Tunnel)` on the window, and if `TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement()` is null, restore focus and handle the key. (`TopLevel.GetTopLevel` replaces `Visual.GetVisualRoot` in Avalonia 12; section 11.)
+- Restoring focus after a transient surface closes: store the invoker before opening, then call `invoker.Focus()` after close (`Dispatcher.UIThread.Post` when closing from inside a handler). When the focused element hides itself, no element owns focus and keys never reach your view (observed); listen with `AddHandler(InputElement.KeyDownEvent, handler, RoutingStrategies.Tunnel)` on the window, and if `TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement()` is null, restore focus and handle the key. (`TopLevel.GetTopLevel` is the Avalonia 12 way to reach the root; section 11 has the older name.)
 - Menus and flyouts: when a click handler closes a flyout, its items can lose their `DataContext`, so command parameters arrive empty (observed). Run the command first and close the flyout afterwards with `Dispatcher.UIThread.Post`.
 - Esc and parent views with tunnel handlers: when a parent view handles keys in the tunnel phase (to close a panel on Esc, to move a selection with arrows), its handler runs before the focused field, so the field never gets its own Esc (restore the value) and the panel closes with the edit lost (observed, Avalonia 12.1.4). Pattern: the field publishes an attached property such as `HasPendingChange` (true while the text differs from the last committed value or while a popup is open), and the parent handler asks the focused element before it acts:
 
@@ -246,6 +302,124 @@ private void OnTunnelKeyDown(object? sender, KeyEventArgs e)
   Keep the field-side rule from `inputs.md` (section 3): it clears `HasPendingChange` when it restores or commits and marks the key handled.
 - `Button.IsDefault` is a window-wide hotkey for Enter (observed, Avalonia 12.1.4): it fires for every Enter that no control handled, anywhere in the window, and when several visible buttons are default, all of them fire. Inline cards and side panels with their own default button make Enter in one place run the action of another. Set `IsDefault` on one button per visible form or panel only (bind it to the "panel is open and active" state, or set it when the form opens and clear it when it closes). A multi-line field handles Enter itself (`AcceptsReturn`), so it does not trigger the default button. Avalonia has no built-in Ctrl+Enter; add it per field, for example `<TextBox.KeyBindings><KeyBinding Gesture="Ctrl+Enter" Command="{Binding SaveCommand}"/></TextBox.KeyBindings>` (derived, not verified for your version).
 - Dragging: releasing pointer capture inside `PointerReleased` raises `PointerCaptureLost` at once and cancels the operation; finish the drop first, then release (observed).
+- Destructive dialogs: put `IsDefault` on the safe button (Cancel), not on the destructive one, and `IsCancel` on Cancel; the dialog's initial focus goes to the same button (`dialogs-and-messages.md`, section 2).
+
+### Roving tab stop
+
+A tab strip or radio group is one tab stop: Tab lands on the selected item, the next Tab leaves the group, arrows move inside. Avalonia has no ready-made pattern for this. Recipe used in an Avalonia 12.1.4 project (observed):
+
+1. A style takes every item that is not selected out of the tab order. The item stays focusable from code, because `IsTabStop` only affects Tab.
+2. An attached behavior on the container handles the arrow keys, moves focus to the neighbor and, for a radio group, selects it too. Make one behavior per model (for example `TabStripBehavior`: arrows move focus, Enter or Space selects; `RadioGroupBehavior`: arrows move and select), or one behavior with a mode.
+
+```xml
+<!-- Adapt the item type: ToggleButton, RadioButton, or TabItem (pseudo-class :selected). -->
+<Style Selector="StackPanel.roving.has-selection > ToggleButton:not(:checked)">
+  <Setter Property="IsTabStop" Value="False"/>
+</Style>
+```
+
+```csharp
+public static class RovingFocus
+{
+    public static readonly AttachedProperty<bool> IsEnabledProperty =
+        AvaloniaProperty.RegisterAttached<Panel, bool>("IsEnabled", typeof(RovingFocus));
+
+    public static void SetIsEnabled(Panel panel, bool value) => panel.SetValue(IsEnabledProperty, value);
+    public static bool GetIsEnabled(Panel panel) => panel.GetValue(IsEnabledProperty);
+
+    static RovingFocus() => IsEnabledProperty.Changed.AddClassHandler<Panel>((panel, e) =>
+    {
+        panel.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
+        if (e.NewValue is true) panel.AddHandler(InputElement.KeyDownEvent, OnKeyDown);
+    });
+
+    private static void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not Panel panel) return;
+        var step = e.Key switch { Key.Left or Key.Up => -1, Key.Right or Key.Down => 1, _ => 0 };
+        if (step == 0) return;
+
+        var items = panel.Children.OfType<InputElement>().Where(c => c.IsVisible && c.IsEffectivelyEnabled).ToList();
+        var current = items.IndexOf((TopLevel.GetTopLevel(panel)?.FocusManager?.GetFocusedElement() as InputElement)!);
+        var next = current + step;
+        if (current < 0 || next < 0 || next >= items.Count) return;   // no wrap at the ends
+
+        items[next].Focus(NavigationMethod.Directional);
+        if (items[next] is RadioButton radio) radio.IsChecked = true;   // selection follows focus (radio group only)
+        e.Handled = true;
+    }
+}
+```
+
+The style needs the class `has-selection` on the container while one item is selected (set it from the behavior or bind it to the ViewModel); with no selection every item stays a tab stop, so the group can still be entered (derived, not verified). Check member names such as `Focus(NavigationMethod, ...)` against your version.
+
+Tests: Tab into the group lands on the selected item; the next Tab leaves the group; Right and Left move focus (and selection, for radios); the last item does not wrap; `Focus()` on an item that is not a tab stop still works.
+
+### Toolbar overflow panel
+
+A toolbar that never wraps needs a panel that measures its children and moves those that do not fit into a menu (`navigation.md`, section 5). Sketch (Derived; not verified in full):
+
+```csharp
+public sealed class OverflowPanel : Panel
+{
+    // Children: the items first, the overflow ("More") button last.
+    private readonly List<Control> _hidden = new();
+    public IReadOnlyList<Control> HiddenItems => _hidden;
+    public event EventHandler? HiddenItemsChanged;
+
+    protected override Size MeasureOverride(Size available)
+    {
+        var more = Children[^1];
+        var items = Children.Take(Children.Count - 1).ToList();
+        foreach (var child in Children) child.Measure(Size.Infinity);   // natural sizes
+
+        var fits = items.Sum(i => i.DesiredSize.Width) <= available.Width;
+        var budget = fits ? available.Width : available.Width - more.DesiredSize.Width;
+
+        var hidden = new List<Control>();
+        double used = 0;
+        foreach (var item in items)
+        {
+            used += item.DesiredSize.Width;
+            if (used > budget) hidden.Add(item);
+        }
+
+        foreach (var item in items) item.Classes.Set("overflowed", hidden.Contains(item));
+        more.Classes.Set("overflowed", hidden.Count == 0);
+        if (!hidden.SequenceEqual(_hidden))
+        {
+            _hidden.Clear();
+            _hidden.AddRange(hidden);
+            // Fill the menu after layout, never inside measure.
+            Dispatcher.UIThread.Post(() => HiddenItemsChanged?.Invoke(this, EventArgs.Empty));
+        }
+
+        var visibleWidth = items.Except(hidden).Sum(i => i.DesiredSize.Width) + (hidden.Count > 0 ? more.DesiredSize.Width : 0);
+        return new Size(Math.Min(visibleWidth, available.Width), Children.Max(c => c.DesiredSize.Height));
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        double x = 0;
+        foreach (var child in Children)
+        {
+            if (child.Classes.Contains("overflowed")) { child.Arrange(new Rect(x, 0, 0, 0)); continue; }   // 0 x 0
+            child.Arrange(new Rect(x, 0, child.DesiredSize.Width, finalSize.Height));
+            x += child.DesiredSize.Width;
+        }
+        return finalSize;
+    }
+}
+```
+
+```xml
+<Style Selector="local|OverflowPanel > Control.overflowed">
+  <Setter Property="IsEnabled" Value="False"/>
+  <Setter Property="Opacity" Value="0"/>
+</Style>
+```
+
+A hidden child needs all three: `IsEnabled` false, `Opacity` 0 and a 0 x 0 arrange. With less, the invisible items stay in the tab order and clog it (observed, Avalonia 12.1.4). Changing `IsVisible` from inside measure would invalidate the layout again (derived, not verified), which is why the sketch uses a class. When `HiddenItemsChanged` fires, rebuild the menu entries from `HiddenItems` with their text labels (icon-only items need a text in the menu) and commands. Tests: at the minimum window width and at a wide width, press Tab through the toolbar and compare the focus sequence with the visible items plus the "More" button; open the menu and check that every hidden command is in it.
 
 ## 9. Automation
 
@@ -373,6 +547,11 @@ Saving many PNG frames in one run can crash the test host with an access violati
 
 Run only one test process per working copy at a time and stop local servers first: suites that start databases, simulators or other apps in parallel can turn headless runs red at random (observed).
 
+### What headless does not show
+
+- Tooltips: in a headless test a tooltip appears in the window's overlay layer instead of a popup window (observed, Avalonia 12.1.4). You can assert that it opens, its content, the delay and its placement relative to the target; shadow, border and behavior at a screen edge cannot be verified. Look at those in the running app and say so in the report. Other popups (menus, flyouts, combo lists) may behave the same way (derived, not verified).
+- A `MinWidth` on the window clamps the width a test asks for (observed): a responsive test at 600 px inside a window with `MinWidth` 800 measures 800 px. Lift the minimum inside the test (`window.MinWidth = 0`) or measure the content directly (`content.Measure(new Size(600, 800))`).
+
 ## 11. Avalonia 11 to 12 names
 
 Avalonia 12 renames several APIs and template parts that this skill's patterns use. Observed in Avalonia 12.1.4; the right-hand column is the name to use there, the left-hand column is what Avalonia 11 code and older examples contain. Docs: [Avalonia documentation][avalonia-docs].
@@ -395,6 +574,12 @@ How to find the right name in your version instead of guessing: build and read t
 - `FontFamily="Name, Fallback"` only finds installed fonts; an embedded font needs its resource family name (for example `fonts:Inter#Inter` in one project's setup); check how your theme registers it.
 - Headless image tests with enter or exit animations need at least 200 ms before the frame capture, otherwise the image shows a half fade.
 - Stub-based UI tests that match a request by path plus query break when you add a query parameter; update every stub that wires that route.
+- Pseudo-class rules beat base rules; a base style on a template part can lose against the theme's `:unchecked` or `:pointerover` rule. Write the state selector (section 3, Precedence).
+- `MenuItem` radius is a `TemplateBinding` to `MenuItem.CornerRadius`; set it on the `MenuItem`, not on the template border (section 3).
+- `OverrideDefaultValue` on `ToolTip.ShowDelay` or `ToolTip.Placement` throws "Metadata already set"; use the `ToolTip.TipProperty.Changed` pattern (section 6).
+- A custom `ToggleSwitch` template without `PART_SwitchKnob` and `PART_MovingKnobs` fails with AVLN2205 (section 4).
+- Overflowed toolbar items that are only transparent still take Tab stops; disable them and arrange them at 0 x 0 (section 8).
+- A window `MinWidth` clamps headless test widths (section 10).
 
 ## 13. Checklist
 
@@ -405,9 +590,13 @@ How to find the right name in your version instead of guessing: build and read t
 - [ ] Transitions use the token durations and curves; reduced-motion test passes.
 - [ ] Behaviors are attached properties or control subclasses with headless tests.
 - [ ] Every style that targets a template part was checked with a probe test; values the template sets itself are overridden in `TemplateApplied` or through the theme resource (section 3).
+- [ ] A property that does not change was traced to its source (template, pseudo-class rule, local value) and changed there (section 3, Precedence).
+- [ ] A custom template contains the required parts of its control (section 4, Required template parts; the compiler or a probe test confirms it).
 - [ ] Names that changed between Avalonia 11 and 12 match the project's version (section 11).
 - [ ] Parsers are pure classes with table tests; no `double` in the money path.
-- [ ] Groups are one tab stop; F6 cycles named regions (headless test).
+- [ ] Groups are one tab stop and the stop is the selected item; arrows do not wrap; F6 cycles named regions (headless test; section 8).
+- [ ] An overflow panel hides items completely (disabled, transparent, 0 x 0) and Tab visits only visible items (headless test at minimum and wide width).
+- [ ] Tooltip delay and placement come from one app-wide default, not from `OverrideDefaultValue` (section 6).
 - [ ] Automation names, help, required and live-region settings present on custom controls (test or inspector).
 - [ ] Every selector and property used in this file was checked against the project's Avalonia version.
 

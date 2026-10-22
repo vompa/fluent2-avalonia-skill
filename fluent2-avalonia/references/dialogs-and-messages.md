@@ -42,8 +42,9 @@ Kinds and dismissal:
 
 Focus:
 
-- On open, focus the first operable element and trap focus inside; on close, return focus to the element that opened it. The WinUI default button gets brand styling, answers Enter, and receives focus when nothing else can. ([Dialog][f2-dialog], [WinUI dialogs][wl-dialogs])
-- Initial focus never lands on a destructive control. For a destructive confirmation, initial focus and Enter go to "Cancel" (Derived); for a neutral confirmation the primary button is fine. ([WinUI keyboard][wl-keyboard])
+- On open, trap focus inside; on close, return focus to the element that opened it. ([Dialog][f2-dialog], [WinUI dialogs][wl-dialogs])
+- Where initial focus lands depends on the question, not on which button is primary. A dialog with input fields focuses the first field. A neutral confirmation focuses the primary button, which is the default button: it gets brand styling and answers Enter. A destructive question ("Delete ...?", "Discard changes?") puts initial focus and Enter on the safe action, "Cancel" or "Keep editing", and the destructive button needs a deliberate Tab and press. Esc equals Cancel in every case. The primary button stays the one the layout highlights; only focus and the Enter default move to the safe one. ([WinUI dialogs][wl-dialogs], [WinUI keyboard][wl-keyboard])
+- Initial focus never lands on a destructive control. The shortcut "focus the primary action" is wrong for destructive questions.
 - After closing any transient surface (menu, popover, list) focus must not be lost. In Avalonia the focused element disappearing leaves no focus owner, and key events then miss your view; restore focus deliberately (see `avalonia-mapping.md`). ([Accessibility][f2-a11y])
 
 Content:
@@ -56,7 +57,7 @@ Content:
 
 - Inline (next to content, no dim) or overlay (modal, dimmed). Structure: header (title, close, quick actions), body, footer (primary button at the start). Header and footer stay fixed. Four widths: small (default), medium, large, full. Warn before data loss on close; keep multi-step flows to two or three steps; show an error as a message bar at the top of the drawer; navigation drawers sit on the left, notification drawers on the right. ([Drawer][f2-drawer])
 - An inline side panel needs no overlay shadow; a left or right border is enough. ([Elevation][f2-elev])
-- Closing a panel or tab that has unsaved changes should ask "Discard changes?" with "Discard" and "Keep editing" (Derived). ([Drawer][f2-drawer])
+- Closing a panel or tab that has unsaved changes should ask "Discard changes?" with "Discard" and "Keep editing" (Derived); this is a destructive question, so initial focus and Enter sit on "Keep editing" (section 2, Focus). ([Drawer][f2-drawer])
 
 ## 4. Popover and info label
 
@@ -94,7 +95,7 @@ Kinds and duties:
 
 - [ ] Width within 320 to 548 (or the project value); padding and radius from tokens; screenshot light and dark.
 - [ ] Title states the point; buttons are concrete answers; no "OK", "Yes", "No" (grep resource strings).
-- [ ] Initial focus is on Cancel for a destructive dialog; Esc cancels; Enter follows the focused button (headless test).
+- [ ] Initial focus and Enter are on the safe action (Cancel, Keep editing) for a destructive dialog, and on the primary button for a neutral confirmation; Esc cancels in both (headless test: open, read the focused element, press Enter, assert the result is Cancel; open again, press Esc).
 - [ ] Focus returns to the invoker after close (test).
 - [ ] Never opens from a dialog; at most one open (test).
 - [ ] Field errors never appear in a dialog (review).

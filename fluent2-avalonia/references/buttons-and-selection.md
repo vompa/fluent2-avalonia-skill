@@ -53,7 +53,7 @@ States and motion:
 
 ## 3. Checkbox
 
-- Size and parts (Fluent default): box 16 (large 20), radius 2, border in the accessible neutral border color (`#616161`), checked fills with brand and a white check, mixed shows a dash, hover darkens the border, disabled dims border and mark. The click target is the box plus 8 px each side; make the whole row clickable including the label, at the project's control height. Label to the right, 4 px gap, 14/20 (or the project's 8 px). ([Checkbox source][gh-checkbox])
+- Size and parts (Fluent default): box 16 (large 20), radius 2, border in the accessible neutral border color (`#616161`), checked fills with brand and a white check, mixed shows a dash, hover darkens the border, disabled dims border and mark. The click target is the box plus 8 px each side; make the whole row clickable including the label, at the project's control height. Label to the right, 4 px gap, 14/20 (or the project's 8 px). In Avalonia the box is `Border#NormalRectangle`; set its border in a `:unchecked` style, because a base style loses against the theme's state rule (`avalonia-mapping.md`, sections 3 and 4). ([Checkbox source][gh-checkbox])
 - A checkbox does not apply a change immediately; it records a choice that is submitted. Use it for single yes/no or for a group of at most about seven options. ([Checkbox][f2-checkbox], [WinUI checkboxes][wl-checkbox])
 - Parent checkbox with child items: the mixed state is set by code only, never by the user directly; children are indented (WinUI example 24). Text at most two lines. Do not place two groups side by side; give each group a group label. ([Checkbox][f2-checkbox], [WinUI checkboxes][wl-checkbox])
 - Phrase the label as the statement the check makes true, and avoid negations: "Notify guests by email", not "Do not send email". Because a ticked negative is a double negative. ([Checkbox][f2-checkbox])
@@ -64,13 +64,14 @@ States and motion:
 - Circle 16; exactly one option; preselect the most sensible one and place it first; vertical layout preferred; about five options at most (WinUI: more than eight belongs in a combo box); offer "None" where it makes sense. ([Radio group][f2-radiogroup], [Radio source][gh-radio], [WinUI radio buttons][wl-radio])
 - Labels are short, wrap rather than truncate, sentence case, no final punctuation; the group heading has no colon. Longer explanations go into a subtitle (full sentences) or an info label. ([Radio group][f2-radiogroup])
 - Keyboard (WinUI): Tab lands on the selected option, or on the first if none is selected, and focus alone does not select; arrows move focus and select ("selection follows focus"); Ctrl+Arrow moves focus without selecting and Space selects; no wrap at the ends. Screen readers announce name, role, state and position ("2 of 4"). ([WinUI radio buttons][wl-radio], [WinUI keyboard][wl-keyboard])
-- Avalonia: make the group one tab stop (`KeyboardNavigation.TabNavigation="Once"` on the container) with arrow navigation inside; see `avalonia-mapping.md`. Derived.
+- Avalonia: make the group one tab stop on the selected option, with arrow navigation that moves and selects and does not wrap; recipe in `avalonia-mapping.md`, section 8 (roving tab stop). The outer ring of the circle is `Ellipse#OuterEllipse` in the Avalonia 12 Fluent template (observed). Derived.
 
 ## 5. Switch
 
 - Track 40 x 20, thumb 18 with 2 px gap (small 32 x 16), 1 px border, pill radius, 200 ms easy-ease transition; on state brand fill and white thumb (Fluent default). ([Switch source][gh-switch])
 - A switch acts immediately. For settings that need a Save or Apply step, use a checkbox. Because users expect a switch to take effect when flipped. ([Switch][f2-switch], [WinUI toggles][wl-toggles])
 - Label: one or two words, a noun (or a verb in its positive state), never "turn on/off", never a question. Place it above or beside the switch, close to it. Extra explanation goes into a tooltip. WinUI: replace the default On/Off text only when needed, with one word. ([Switch][f2-switch], [WinUI toggles][wl-toggles])
+- Avalonia: a custom `ToggleSwitch` template needs the parts `PART_SwitchKnob` and `PART_MovingKnobs`, otherwise it does not compile (`avalonia-mapping.md`, section 4).
 - Switch versus checkbox: a switch is an action ("online booking active"), a checkbox is a state to be submitted. ([WinUI toggles][wl-toggles])
 
 ## 6. Slider
@@ -111,7 +112,7 @@ Counts differ between sources (Fluent radio about 5, WinUI combo box from 9, Win
 - [ ] The whole row, label included, is clickable (headless click on the label toggles).
 - [ ] Border contrast is 3:1 in rest state (script).
 - [ ] Labels are positive statements; "select all" shows the mixed state for partial selection (test).
-- [ ] Radio group is a single tab stop; arrows move and select; no wrap (headless keyboard test).
+- [ ] Radio group is a single tab stop on the selected option; arrows move and select; no wrap (headless keyboard test).
 - [ ] Switches exist only on views without a save button (review).
 - [ ] The switch transition is 200 ms and disabled by reduced motion.
 
