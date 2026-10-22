@@ -56,6 +56,7 @@ Read this file when you design or review keyboard navigation, focus order and fo
 
 - Accelerators (Ctrl+letter) for frequent commands, access keys (Alt+letter) with visible key hints. Show the shortcut in the tooltip and expose it as `AutomationProperties.AcceleratorKey`. WinUI tooltips show accelerators by default. ([Keyboard accessibility][wl-kbdaccess], [WinUI tooltips][wl-tooltips])
 - Every shortcut gets a tooltip or menu text, and every tooltip that names a shortcut matches a real key binding (cross-check in code). Derived.
+- Single-character shortcuts (letter keys without a modifier) act only while no input field has focus; otherwise they break typing and speech input (WCAG 2.1.4, Character Key Shortcuts). Say so in the app's shortcut list, whose layout and rules are in `navigation.md`, section 7. Derived.
 
 ## 6. Screen readers and UI Automation
 
@@ -119,6 +120,7 @@ So treat names as something to test, not to review by eye.
 - [ ] Esc in an edited field restores the value before an enclosing panel closes, also when the panel handles keys in the tunnel phase (test: edit, press Esc, assert old value and panel still open; press Esc again, assert closed).
 - [ ] F6 and Shift+F6 cycle the regions in screen order; each region has a name and a focus target (the view itself where it handles keys); a page without regions is one region (test with real keys).
 - [ ] Shortcuts appear in tooltips and `AcceleratorKey`; no tooltip names a shortcut that does not exist.
+- [ ] Letter-key shortcuts do not fire while a text field has focus (headless test: type the letter in a field), and the shortcut list says so (`navigation.md`, section 7).
 - [ ] Contrast measured for text (4.5:1), large text and non-text (3:1) in all themes and states.
 - [ ] No meaning is carried by color or emphasis alone (review plus grayscale screenshot).
 - [ ] Reduced-motion switch zeroes all transitions (test).

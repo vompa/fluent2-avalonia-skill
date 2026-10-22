@@ -33,7 +33,7 @@ Observed in Avalonia 12.1.4. Each row names the pattern that fails and what to d
 | `Selectors.Is<T>()` with `T` derived from `Animatable` | The type argument must be a `StyledElement` or derived. | Use `Is<Control>()` or `OfType<Control>()`. |
 | Style setter with a compiled binding (`{Binding Subject}`) | Does not compile or resolve without the data type. | Put `x:DataType` on the `Style` element: `<Style Selector="ListBoxItem" x:DataType="vm:Row">`. |
 | Partial `OnXChanged(old, new)` methods of a generated property | The parameters take the nullability of the property. | Declare `old` and `new` nullable when the property is nullable, or the build reports nullability warnings (errors when warnings are errors). |
-| `dotnet test --filter-method` and `--filter-class` (Microsoft.Testing.Platform runner) | Needs fully qualified names; a class filter and a method filter given together combine with AND, so a method of another class matches nothing ("Total: 0"). Several filters of the same kind combine with OR. | Pass the full name `Namespace.Class.Method`, or run per class; check the reported test count, not only the exit code. |
+| `dotnet test --filter-method` and `--filter-class` (Microsoft.Testing.Platform runner) | Needs fully qualified names; a class filter and a method filter given together combine with AND, so a method of another class matches nothing ("Total: 0"). Several filters of the same kind combine with OR. | Pass the full name `Namespace.Class.Method`, or run per class; check the reported test count, not only the exit code. Do not use wildcards (`*`) in the filter: restricted shells and permission layers can refuse or expand them, and a partial name matches nothing. |
 
 ## 3. Observed pitfalls
 
@@ -48,6 +48,10 @@ Observed in Avalonia 12.1.4. Each row names the pattern that fails and what to d
 - `OverrideDefaultValue` on `ToolTip.ShowDelay` or `ToolTip.Placement` throws "Metadata already set"; use the `ToolTip.TipProperty.Changed` pattern (`avalonia-mapping.md`, section 6).
 - A custom `ToggleSwitch` template without `PART_SwitchKnob` and `PART_MovingKnobs` fails with AVLN2205 (`avalonia-mapping.md`, section 4).
 - Overflowed toolbar items that are only transparent still take Tab stops; disable them and arrange them at 0 x 0 (`avalonia-mapping.md`, section 8).
+- A tooltip is a logical child of its target: a descendant selector such as `Border.chip TextBlock` also colors the tooltip text (seen: contrast 1.0 on the dark tooltip surface). Use `>` and test every real tooltip (`navigation.md`, section 6; `avalonia-mapping.md`, section 3).
+- A menu entry without an icon starts left of its neighbors: the icon column is not reserved. An empty 16 x 16 `Border` as `Icon` keeps the texts flush (`navigation.md`, section 4).
+- Two `*` columns stay unequal under infinite width; give the frame a width. `SharedSizeGroup` needs `Grid.IsSharedSizeScope` on a common ancestor. `DesiredSize` includes the margin (`avalonia-mapping.md`, section 4, Layout notes).
+- In headless tests a flyout is opened with `ShowAt` and its content is found from the window, not from the owner; `RaiseEvent(Button.ClickEvent)` does not run the command (`avalonia-mapping.md`, section 10, Flyouts, keys and commands).
 - A window `MinWidth` clamps headless test widths (`avalonia-mapping.md`, section 10).
 - A reduced-motion class on the root window with a type-only style loses against setters under classes and pseudo-classes, and styles added to an open window leave template transitions behind; use an activator style on the `Application` (`avalonia-mapping.md`, section 5).
 - `ITransition` does not expose duration or property; read the concrete type (`avalonia-mapping.md`, section 10, Reading transitions).

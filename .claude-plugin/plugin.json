@@ -1,7 +1,7 @@
 {
   "name": "fluent2-avalonia",
   "displayName": "Fluent 2 for Avalonia",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Fluent 2 design rules, component behavior and review checklists for Avalonia desktop apps, with headless test patterns and responsible AI guidance.",
   "author": {
     "name": "vompa",

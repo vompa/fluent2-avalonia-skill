@@ -10,6 +10,7 @@ Read this file when you turn a Fluent rule from the other reference files into A
    - [Precedence](#precedence)
 4. [Templates and the field underline](#4-templates-and-the-field-underline)
    - [Required template parts](#required-template-parts)
+   - [Layout notes](#layout-notes)
 5. [Transitions and reduced motion](#5-transitions-and-reduced-motion)
 6. [Behaviors as attached properties](#6-behaviors-as-attached-properties)
    - [Tooltip defaults](#tooltip-defaults)
@@ -24,6 +25,7 @@ Read this file when you turn a Fluent rule from the other reference files into A
 10. [Headless tests](#10-headless-tests)
     - [Reading transitions](#reading-transitions)
     - [What headless does not show](#what-headless-does-not-show)
+    - [Flyouts, keys and commands](#flyouts-keys-and-commands)
 11. [Checklist](#11-checklist)
 12. [Sources](#12-sources)
 
@@ -122,6 +124,7 @@ Consequences seen in practice:
 
 - CheckBox: a base style on the box part (`Border#NormalRectangle`) left the border at the theme's value while unchecked. The same setter under `CheckBox:unchecked /template/ Border#NormalRectangle` took effect. Write the state you want to change; do not rely on the base rule.
 - Dialog layout: `Orientation` or `HorizontalAlignment` written as attributes on an element could not be changed by a class style (compact layout, narrow window). Move such values from the XAML element into a style, so another style can override them.
+- Tooltip text: a tooltip is a logical child of its target, so a descendant selector of the target (`Border.chip TextBlock`) also styles the text inside the tooltip (observed, Avalonia 12.1.4). Seen: tooltip text in the target's text color on the dark tooltip surface, contrast 1.0. Use the child combinator for text that belongs to the target (`Border.chip > TextBlock`) and test every real tooltip (`navigation.md`, section 6).
 - MenuItem: the entry radius hangs on `MenuItem.CornerRadius` through a `TemplateBinding`, so it can only be set on the `MenuItem` itself (`<Style Selector="MenuItem"><Setter Property="CornerRadius" .../></Style>`); a setter on the template border does nothing.
 
 When a property does not change, find which of the three sets it (probe test, section 4), then change it at that level.
@@ -204,6 +207,14 @@ A replacement template must contain the parts that the control looks up by name.
 Context menus, combo box popups and other controls have their own templates; run the probe from this section to list their names instead of assuming that they match. Copy the names from the probe output of your version, because they are theme details and can change.
 
 Focus rings for buttons and list rows: the control's `FocusAdorner` draws the ring. An adorner drawn outside the element's bounds is clipped by the adorner layer; turn clipping off with `AdornerLayer.IsClipEnabled="False"` on the element (observed). Calling `Focus(NavigationMethod.Tab)` shows the ring only if the element did not already have focus; to test it, focus another element first (observed).
+
+### Layout notes
+
+Layout findings from an Avalonia 12.1.4 project (observed); the fixes are Derived, so check each against the real layout.
+
+- Two `*` columns are not equal under infinite width. When a `Grid` is measured without a width limit (inside a popup or flyout that sizes to its content, a horizontal `ScrollViewer`, a `StackPanel`), each star column takes the width of its content, so two columns of unequal content stay unequal. Give the surrounding frame a width: stretch it (`HorizontalAlignment="Stretch"`) with a `MaxWidth`, or a fixed `Width`, so the grid is measured with a finite width. Check with the `ActualWidth` of both columns' content.
+- One fixed column across several lists: put `SharedSizeGroup="Keys"` on the column definition in each row template and `Grid.IsSharedSizeScope="True"` on a common ancestor of all the `ItemsControl`s. The column then takes the width of the widest cell of every list in the scope, so keys, labels or times line up across groups. Without the scope, every row sizes on its own. A column with a shared size group must be `Auto`-sized or fixed.
+- `DesiredSize` includes the element's `Margin`. When you re-measure row heights in code or compare them with a design value in a test, subtract the vertical margin, or the result is too large by the margin (derived from the layout contract; confirm with one row).
 
 ## 5. Transitions and reduced motion
 
@@ -743,6 +754,7 @@ Patterns worth having:
 | Error replaces help | Setting an error hides the help text and shows the message with its icon. |
 | Focus restore | Open a popup or dialog from a button, close it, assert the button has focus; close a panel with a mouse click, press an arrow key, assert the view handled it. |
 | Reduced motion | Switch on, open every page, assert that no visible element has a non-zero transition (helper in Reading transitions below; override pattern in section 5). |
+| Tooltip contrast | Open every real tooltip of the page (set the tip, show it, find its text in the overlay), resolve the text and surface colors and assert 4.5:1 in light and dark; a descendant selector of the target can change the text color (section 3, Precedence). |
 | Contrast | Resolve brushes from both theme variants (`Application.Current.RequestedThemeVariant`), compute WCAG ratios, assert 4.5 and 3.0 thresholds per state. |
 | Screenshots | `window.CaptureRenderedFrame()` after a short wait for animations (at least 200 ms for fades; advance the render timer or delay), once per state per theme. |
 
@@ -795,8 +807,16 @@ The reflection read is also a quick way to check the other direction: with the s
 
 ### What headless does not show
 
-- Tooltips: in a headless test a tooltip appears in the window's overlay layer instead of a popup window (observed, Avalonia 12.1.4). You can assert that it opens, its content, the delay and its placement relative to the target; shadow, border and behavior at a screen edge cannot be verified. Look at those in the running app and say so in the report. Other popups (menus, flyouts, combo lists) may behave the same way (derived, not verified).
+- Tooltips: in a headless test a tooltip appears in the window's overlay layer instead of a popup window (observed, Avalonia 12.1.4). You can assert that it opens, its content, the delay and its placement relative to the target; shadow, border and behavior at a screen edge cannot be verified. Look at those in the running app and say so in the report. Flyouts are observed to behave the same way (next subsection); menus and combo lists may (derived, not verified).
 - A `MinWidth` on the window clamps the width a test asks for (observed): a responsive test at 600 px inside a window with `MinWidth` 800 measures 800 px. Lift the minimum inside the test (`window.MinWidth = 0`) or measure the content directly (`content.Measure(new Size(600, 800))`).
+
+### Flyouts, keys and commands
+
+Observed in Avalonia 12.1.4 headless tests; the way to reach the content is Derived from that, so confirm it in your version.
+
+- A flyout's content is not a child of the control that owns it, because the flyout lives in a popup. Open it from the test with `flyout.ShowAt(control)` and look for the content from the window: `window.GetVisualDescendants()` reaches it, and a search from the owning control does not. Search by name, type or automation name, and assert that the search found exactly the expected element.
+- Send keys to the element that should handle them: `control.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Down })`. Window-level helpers such as `KeyPressQwerty` go to the focused element of the window, which is not inside a popup unless focus was moved there.
+- `button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent))` raises the event but does not run the button's `Command`. To test the command, execute it directly (`button.Command!.Execute(button.CommandParameter)`), or click with the headless mouse (`MouseDown` and `MouseUp` at the center of the button) so the control runs its own click path.
 
 ## 11. Checklist
 
@@ -815,6 +835,9 @@ The reflection read is also a quick way to check the other direction: with the s
 - [ ] F6 and Shift+F6 cycle regions in screen order, each with a name and a focus target; a page without regions is one region (test; section 8, F6 regions).
 - [ ] The Tab walk of each screen matches the numbered focus list, and nothing docked out of source order takes focus first (test; section 8, Tab order walk).
 - [ ] An overflow panel hides items completely (disabled, transparent, 0 x 0) and Tab visits only visible items (headless test at minimum and wide width).
+- [ ] Selectors for text inside a target use the child combinator `>`, so they do not reach the tooltip text; every real tooltip passes the contrast test (section 3, Precedence; section 10).
+- [ ] Equal-width star columns have a finite width from their frame; columns shared across lists use `SharedSizeGroup` inside a `Grid.IsSharedSizeScope`; row heights taken from `DesiredSize` exclude the margin (section 4, Layout notes).
+- [ ] Flyout tests open with `ShowAt`, search from the window, send keys with `RaiseEvent` on the handling element and run commands directly or with the headless mouse (section 10).
 - [ ] Tooltip delay and placement come from one app-wide default, not from `OverrideDefaultValue` (section 6).
 - [ ] Automation names, help, required and live-region settings present on custom controls (test or inspector).
 - [ ] The name scan finds no empty or type-like names on any page; list rows, icon buttons and help buttons have names that identify their target (section 9).
